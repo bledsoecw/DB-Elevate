@@ -8,6 +8,7 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
+  Search,
   ClipboardCheck,
   GraduationCap,
   HardHat,
@@ -23,7 +24,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, initials } from '@/lib/utils';
 import { api } from '@/lib/client-api';
 import { activeNavKey, type NavSection } from './nav';
 
@@ -154,12 +155,23 @@ export function AppShell({
     }
   }
 
+  /**
+   * Which nav sections are expanded.
+   *
+   * Seeded from the active route so arriving on a sub-page shows you where you
+   * are, then owned by the user's clicks. Expanding is not navigation — the
+   * parent remains a link, so one click still gets you to the section's main
+   * page and the chevron is a separate target.
+   */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const sectionOpen = (key: string) => expanded[key] ?? key === activeKey;
+
   const navList = (
-    <nav className="flex flex-1 flex-col gap-6 px-3 py-4" aria-label="Main">
+    <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4" aria-label="Main">
       {sections.map((section, si) => (
         <div key={section.heading ?? `section-${si}`}>
           {section.heading && (
-            <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-brand-200/80">
+            <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               {section.heading}
             </p>
           )}
@@ -168,32 +180,76 @@ export function AppShell({
               const Icon = ICONS[item.icon] ?? Home;
               const active = item.key === activeKey;
               const badge = item.badgeKey === 'tasks' ? taskCount : 0;
+              const hasChildren = Boolean(item.children?.length);
+              const open = hasChildren && sectionOpen(item.key);
               return (
                 <li key={item.key}>
-                  <Link
-                    href={item.href}
-                    aria-current={active ? 'page' : undefined}
-                    title={item.description}
+                  <div
                     className={cn(
-                      'group flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition',
+                      'group flex items-center rounded-md transition',
                       active
-                        ? 'bg-white/15 text-white'
-                        : 'text-brand-100 hover:bg-white/10 hover:text-white',
+                        ? 'bg-brand-50 text-brand-800'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
                     )}
                   >
-                    <Icon aria-hidden className="h-[18px] w-[18px] flex-shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {badge > 0 && (
-                      <span
+                    <Link
+                      href={item.href}
+                      aria-current={active ? 'page' : undefined}
+                      title={item.description}
+                      className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2 text-sm font-medium"
+                    >
+                      <Icon
+                        aria-hidden
                         className={cn(
-                          'rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums',
-                          overdueCount > 0 ? 'bg-accent-600 text-white' : 'bg-white/20 text-white',
+                          'h-[18px] w-[18px] flex-shrink-0',
+                          active ? 'text-brand-700' : 'text-slate-400 group-hover:text-slate-600',
                         )}
+                      />
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {badge > 0 && (
+                        <span
+                          className={cn(
+                            'rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums',
+                            overdueCount > 0
+                              ? 'bg-accent-600 text-white'
+                              : 'bg-brand-600 text-white',
+                          )}
+                        >
+                          {badge}
+                        </span>
+                      )}
+                    </Link>
+                    {hasChildren && (
+                      <button
+                        type="button"
+                        onClick={() => setExpanded((e) => ({ ...e, [item.key]: !open }))}
+                        aria-expanded={open}
+                        aria-label={`${open ? 'Collapse' : 'Expand'} ${item.label}`}
+                        className="flex-shrink-0 rounded px-2 py-2 text-slate-400 transition hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
                       >
-                        {badge}
-                      </span>
+                        <ChevronDown
+                          aria-hidden
+                          className={cn('h-4 w-4 transition-transform', open && 'rotate-180')}
+                        />
+                      </button>
                     )}
-                  </Link>
+                  </div>
+
+                  {open && item.children && (
+                    <ul className="mb-1 mt-0.5 space-y-0.5">
+                      {item.children.map((child) => (
+                        <li key={child.key}>
+                          <Link
+                            href={child.href}
+                            onClick={() => setMobileOpen(false)}
+                            className="block truncate rounded-md py-1.5 pl-[38px] pr-2.5 text-[13px] text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                          >
+                            {child.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               );
             })}
@@ -205,22 +261,46 @@ export function AppShell({
 
   const sidebarInner = (
     <>
-      <div className="flex h-16 flex-shrink-0 items-center gap-2.5 border-b border-white/10 px-5">
+      <div className="flex h-16 flex-shrink-0 items-center gap-2.5 border-b border-slate-200 px-5">
         {branding.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={branding.logoUrl} alt="" className="h-7 w-auto" />
+          <img src={branding.logoUrl} alt={branding.orgName} className="h-8 w-auto max-w-[170px] object-contain" />
         ) : (
-          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-accent-600 text-white">
-            <HardHat aria-hidden className="h-[18px] w-[18px]" />
-          </span>
+          <>
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-brand-700 text-white">
+              <HardHat aria-hidden className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-slate-900">
+              {branding.wordmarkText}
+            </span>
+          </>
         )}
-        <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-white">
-          {branding.wordmarkText}
-        </span>
       </div>
+
       {navList}
-      <div className="flex-shrink-0 border-t border-white/10 px-5 py-3">
-        <p className="truncate text-xs text-brand-200">{branding.orgName}</p>
+
+      {/*
+        The person, pinned at the bottom. It answers "who am I signed in as"
+        without a click, which matters in an application where the answer
+        changes what you are allowed to see.
+      */}
+      <div className="flex-shrink-0 border-t border-slate-200 p-3">
+        <Link
+          href="/account"
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center gap-2.5 rounded-md px-2 py-2 transition hover:bg-slate-100"
+        >
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-[13px] font-semibold text-brand-800">
+            {initials(user.firstName, user.lastName)}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-slate-900">{user.name}</span>
+            <span className="block truncate text-[11px] text-slate-500">
+              {user.jobTitle ?? user.roleSummary}
+            </span>
+            <span className="block truncate text-[11px] text-slate-400">{user.email}</span>
+          </span>
+        </Link>
       </div>
     </>
   );
@@ -232,7 +312,7 @@ export function AppShell({
       </a>
 
       {/* Desktop sidebar */}
-      <aside className="no-print hidden w-60 flex-shrink-0 flex-col bg-brand-800 lg:flex lg:fixed lg:inset-y-0">
+      <aside className="no-print hidden w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white lg:flex lg:fixed lg:inset-y-0">
         {sidebarInner}
       </aside>
 
@@ -240,7 +320,7 @@ export function AppShell({
       {mobileOpen && (
         <div className="no-print fixed inset-0 z-40 lg:hidden">
           <div className="fixed inset-0 bg-slate-900/50" onClick={() => setMobileOpen(false)} aria-hidden />
-          <aside className="relative flex h-full w-72 max-w-[85%] flex-col bg-brand-800">
+          <aside className="relative flex h-full w-72 max-w-[85%] flex-col bg-white">
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
@@ -254,7 +334,7 @@ export function AppShell({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-60">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         {/* Top bar */}
         <header className="no-print sticky top-0 z-30 flex h-16 flex-shrink-0 items-center gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6">
           <button
@@ -266,7 +346,33 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
 
-          <div className="min-w-0 flex-1" />
+          <div className="flex-1" />
+
+          {/*
+            Employee search. Submits to the directory rather than doing
+            type-ahead against an endpoint, because the directory already
+            applies the viewer's scope — a manager searching finds their own
+            reporting line, not the whole company. A separate search endpoint
+            would be a second place for that rule to be got wrong.
+          */}
+          <form action="/people" method="get" className="min-w-0 max-w-xs flex-1 sm:w-72 sm:flex-none">
+            <label htmlFor="employee-search" className="sr-only">
+              Search employees
+            </label>
+            <div className="relative">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                id="employee-search"
+                type="search"
+                name="q"
+                placeholder="Search employee…"
+                className="block w-full rounded-full border-0 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 ring-1 ring-inset ring-slate-200 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-brand-600"
+              />
+            </div>
+          </form>
 
           {/* Notifications */}
           <div className="relative" data-popover>
@@ -360,24 +466,16 @@ export function AppShell({
               }}
               aria-expanded={menuOpen}
               aria-haspopup="true"
-              className="flex items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-slate-100"
+              className="flex items-center rounded-full p-0.5 transition hover:ring-2 hover:ring-slate-200"
             >
               <span
                 aria-hidden
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800"
               >
                 {user.firstName[0]}
                 {user.lastName[0]}
               </span>
-              <span className="hidden min-w-0 text-left sm:block">
-                <span className="block max-w-[11rem] truncate text-sm font-medium text-slate-900">
-                  {user.name}
-                </span>
-                <span className="block max-w-[11rem] truncate text-xs text-slate-500">
-                  {user.jobTitle ?? user.roleSummary}
-                </span>
-              </span>
-              <ChevronDown aria-hidden className="h-4 w-4 text-slate-400" />
+              <span className="sr-only">Account menu for {user.name}</span>
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1.5 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-pop">

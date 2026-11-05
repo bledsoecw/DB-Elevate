@@ -522,8 +522,13 @@ export function StatTile({
 // Links that look like buttons (no client JS needed)
 // ---------------------------------------------------------------------------
 
+/**
+ * Pill-shaped, matching the tool this replaces. Worth copying because a fully
+ * rounded button reads as "press me" at a glance in a dense interface, which
+ * is most of what a button has to do here.
+ */
 export const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50';
 
 export const BUTTON_VARIANTS = {
   primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm',
@@ -535,9 +540,10 @@ export const BUTTON_VARIANTS = {
 } as const;
 
 export const BUTTON_SIZES = {
-  sm: 'px-2.5 py-1.5 text-xs',
-  md: 'px-3.5 py-2',
-  lg: 'px-5 py-2.5 text-base',
+  // A pill needs more horizontal padding than a rectangle to look balanced.
+  sm: 'px-3 py-1.5 text-xs',
+  md: 'px-4 py-2',
+  lg: 'px-6 py-2.5 text-base',
 } as const;
 
 export function ButtonLink({

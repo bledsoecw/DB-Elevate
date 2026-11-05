@@ -6,6 +6,12 @@ import type { Actor } from '@/server/authz/actor';
  * still authorizes every page independently — this only decides what to offer.
  */
 
+export interface NavChild {
+  key: string;
+  label: string;
+  href: string;
+}
+
 export interface NavItem {
   key: string;
   label: string;
@@ -14,6 +20,15 @@ export interface NavItem {
   /** Shown as a badge; resolved by the shell. */
   badgeKey?: 'tasks';
   description: string;
+  /**
+   * Sub-items, revealed when the section is expanded.
+   *
+   * The grouping deliberately mirrors the tool this replaces, because the
+   * people using it already know where things live. Matching their muscle
+   * memory is worth more than a tidier taxonomy of my own devising — every
+   * child here is a destination that already existed, usually as a tab.
+   */
+  children?: NavChild[];
 }
 
 export interface NavSection {
@@ -50,14 +65,47 @@ export function navigationFor(actor: Actor): NavSection[] {
       href: '/reviews',
       icon: 'clipboard-check',
       description: 'Review cycles, assignments and results',
+      children: [
+        { key: 'reviews-mine', label: 'Forms I need to do', href: '/reviews?tab=mine' },
+        { key: 'reviews-results', label: 'Reviews of me', href: '/reviews?tab=results' },
+        ...(isManager || isHr
+          ? [{ key: 'reviews-team', label: "My team's reviews", href: '/reviews?tab=team' }]
+          : []),
+        ...(isHr || isLeadership
+          ? [{ key: 'reviews-approvals', label: 'Awaiting my approval', href: '/reviews?tab=approvals' }]
+          : []),
+        ...(isHr
+          ? [
+              { key: 'reviews-cycles', label: 'Review cycles', href: '/reviews/cycles' },
+              { key: 'reviews-templates', label: 'Review templates', href: '/admin/templates' },
+            ]
+          : []),
+      ],
     },
-    { key: 'goals', label: 'Goals', href: '/goals', icon: 'target', description: 'Individual, team and company goals' },
+    {
+      key: 'goals',
+      label: 'Goals',
+      href: '/goals',
+      icon: 'target',
+      description: 'Individual, team and company goals',
+      children: [
+        { key: 'goals-mine', label: 'My goals', href: '/goals?scope=mine' },
+        ...(isManager ? [{ key: 'goals-team', label: "My team's goals", href: '/goals?scope=team' }] : []),
+        { key: 'goals-company', label: 'Company goals', href: '/goals?scope=company' },
+      ],
+    },
     {
       key: 'feedback',
       label: 'Feedback',
       href: '/feedback',
       icon: 'message-square',
       description: 'Recognition, feedback and requests',
+      children: [
+        { key: 'feedback-received', label: 'Feedback about me', href: '/feedback?tab=received' },
+        { key: 'feedback-given', label: 'Feedback I gave', href: '/feedback?tab=given' },
+        { key: 'feedback-give', label: 'Give feedback', href: '/feedback/new' },
+        { key: 'feedback-request', label: 'Request feedback', href: '/feedback/request' },
+      ],
     },
     {
       key: 'meetings',
@@ -65,6 +113,10 @@ export function navigationFor(actor: Actor): NavSection[] {
       href: '/meetings',
       icon: 'calendar-days',
       description: 'One-to-ones, agendas and action items',
+      children: [
+        { key: 'meetings-list', label: 'My one-to-ones', href: '/meetings' },
+        { key: 'meetings-actions', label: 'Action items', href: '/meetings/actions' },
+      ],
     },
     { key: 'surveys', label: 'Surveys', href: '/surveys', icon: 'bar-chart-3', description: 'Engagement and pulse surveys' },
     {
@@ -73,6 +125,11 @@ export function navigationFor(actor: Actor): NavSection[] {
       href: '/development',
       icon: 'graduation-cap',
       description: 'Development plans and competencies',
+      children: [
+        { key: 'dev-mine', label: 'My plans', href: '/development' },
+        ...(isManager ? [{ key: 'dev-team', label: "My team's plans", href: '/development?scope=team' }] : []),
+        ...(isHr ? [{ key: 'dev-competencies', label: 'Competencies', href: '/admin/competencies' }] : []),
+      ],
     },
   ];
 

@@ -14,7 +14,7 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     Arial, sans-serif;
 
-  /* Default brand: deep construction blue */
+  /* Default brand: Deitemeyer Brothers navy, taken from the wordmark. */
   --brand-50: 238 244 251;
   --brand-100: 214 228 243;
   --brand-200: 173 201 228;
@@ -26,13 +26,20 @@
   --brand-800: 18 48 85;
   --brand-900: 13 34 61;
 
-  /* Default accent: safety amber */
-  --accent-50: 254 245 234;
-  --accent-100: 253 232 207;
-  --accent-400: 237 150 69;
-  --accent-500: 228 131 43;
-  --accent-600: 224 122 31;
-  --accent-700: 180 94 20;
+  /*
+   * Default accent: the green from the "Brothers" script in the logo.
+   *
+   * Accent is used sparingly — recognition, the overdue badge, a single
+   * emphasis per screen. It is never the only thing distinguishing a state;
+   * every status colour is paired with an icon and a label so the meaning
+   * survives for anyone who cannot separate the hues.
+   */
+  --accent-50: 236 248 241;
+  --accent-100: 209 239 221;
+  --accent-400: 85 184 131;
+  --accent-500: 52 166 108;
+  --accent-600: 34 148 92;
+  --accent-700: 24 115 71;
 }
 
 html {

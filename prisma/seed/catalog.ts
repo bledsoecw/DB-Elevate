@@ -20,8 +20,10 @@ export async function seedOrganization(db: PrismaClient) {
       name: 'Dreambuilder Construction & Remodeling',
       productName: process.env.APP_PRODUCT_NAME || 'DB Elevate',
       wordmarkText: 'DB Elevate',
+      // Kept in step with the defaults in globals.css, so a seeded
+      // organization and a blank one do not look like different products.
       brandPrimaryHex: '#1d4e89',
-      brandAccentHex: '#e07a1f',
+      brandAccentHex: '#22945c',
       timezone: 'America/Denver',
       fiscalYearStart: 1,
       surveyMinResponses: 5,
