@@ -2,6 +2,16 @@ import { describe, it, expect } from 'vitest';
 import type { Actor } from '@/server/authz/actor';
 import {
   canAdministerApp,
+  canAdministerProgram,
+  canManageAccountsAndRoles,
+  canManageCycles,
+  canManageOrgSettings,
+  canManageSurveys,
+  canManageTemplates,
+  canReadAuditLog,
+  canRunCalibration,
+  canViewEmployeePerformanceRecord,
+  canViewHrRestricted,
   canEditAssignment,
   canReleaseParticipant,
   canSeeFeedbackAuthor,
@@ -430,5 +440,69 @@ describe('report scope', () => {
     const scope = reportScope(employee);
     expect(scope.kind).toBe('SELF');
     if (scope.kind === 'SELF') expect(scope.employeeIds).toEqual(['me']);
+  });
+});
+
+/**
+ * The administrative role split.
+ *
+ * This matters more than it looks. The pages redirect the wrong role away, but
+ * a page redirect is cosmetic — the service predicate is what stops a direct
+ * API call. An earlier version of `canManageOrgSettings` also returned true for
+ * HR_ADMIN, which let an HR administrator rewrite branding, lower a privacy
+ * threshold, change the mail provider and switch on a metered AI service by
+ * POSTing straight to the route while every screen correctly refused them.
+ * These assertions exist so that cannot come back.
+ */
+describe('administrative role separation', () => {
+  it('confines organization settings to a system administrator', () => {
+    expect(canManageOrgSettings(sysadmin)).toBe(true);
+    expect(canManageOrgSettings(hr)).toBe(false);
+    expect(canManageOrgSettings(manager)).toBe(false);
+    expect(canManageOrgSettings(employee)).toBe(false);
+  });
+
+  it('confines accounts and roles to a system administrator', () => {
+    expect(canManageAccountsAndRoles(sysadmin)).toBe(true);
+    expect(canManageAccountsAndRoles(hr)).toBe(false);
+    expect(canManageAccountsAndRoles(employee)).toBe(false);
+  });
+
+  it('confines the performance catalogue to an HR administrator', () => {
+    expect(canAdministerProgram(hr)).toBe(true);
+    expect(canAdministerProgram(sysadmin)).toBe(false);
+    expect(canManageTemplates(sysadmin)).toBe(false);
+    expect(canManageCycles(sysadmin)).toBe(false);
+    expect(canManageSurveys(sysadmin)).toBe(false);
+    expect(canRunCalibration(sysadmin)).toBe(false);
+  });
+
+  it('lets either administrator read the audit log, and nobody else', () => {
+    // Intentionally shared: the log holds no review text, no private note and
+    // no respondent identity, and HR needs to answer "who released this".
+    expect(canReadAuditLog(sysadmin)).toBe(true);
+    expect(canReadAuditLog(hr)).toBe(true);
+    expect(canReadAuditLog(manager)).toBe(false);
+    expect(canReadAuditLog(employee)).toBe(false);
+  });
+
+  it('does not let a system administrator reach review content through any predicate', () => {
+    // The whole reason the roles are split: running the application must not
+    // come with the right to read what people wrote about each other.
+    expect(canViewHrRestricted(sysadmin)).toBe(false);
+    expect(canViewEmployeePerformanceRecord(sysadmin, 'someone-else')).toBe(false);
+    expect(reportScope(sysadmin).kind).toBe('SELF');
+  });
+
+  it('grants both sets only when both roles are held explicitly', () => {
+    const both = actor({
+      employeeId: 'both',
+      isSysAdmin: true,
+      isHrAdmin: true,
+      roles: ['SYS_ADMIN', 'HR_ADMIN', 'EMPLOYEE'],
+    });
+    expect(canManageOrgSettings(both)).toBe(true);
+    expect(canAdministerProgram(both)).toBe(true);
+    expect(canViewHrRestricted(both)).toBe(true);
   });
 });

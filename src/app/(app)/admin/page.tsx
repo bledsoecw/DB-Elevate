@@ -86,6 +86,17 @@ export default async function AdminPage() {
     },
   ];
 
+  // The audit log is readable by both administrators (policy.ts), so HR sees a
+  // link to it too rather than being sent to a page it is allowed to open.
+  const auditCard = {
+    href: '/admin/audit',
+    icon: ShieldAlert,
+    title: 'Audit log',
+    description:
+      'Every significant action, who took it and when. Review text and private notes are deliberately not recorded.',
+    meta: null as string | null,
+  };
+
   const systemCards = [
     {
       href: '/admin/system',
@@ -180,7 +191,7 @@ export default async function AdminPage() {
             Performance programme
           </h2>
           <Grid cols={3}>
-            {programCards.map((c) => (
+            {[...programCards, ...(actor.isSysAdmin ? [] : [auditCard])].map((c) => (
               <Link
                 key={c.href}
                 href={c.href}

@@ -54,14 +54,30 @@ export function canManageSurveys(actor: Actor): boolean {
   return actor.isHrAdmin;
 }
 
+/**
+ * Organization settings, branding, mail delivery and AI configuration are
+ * application administration, so they are SYS_ADMIN only.
+ *
+ * Deliberately NOT granted to HR_ADMIN. An HR administrator running the
+ * performance programme has no business changing the mail provider, lowering a
+ * privacy threshold, or switching on a metered AI service — and the two roles
+ * only overlap where someone has been granted both explicitly.
+ */
 export function canManageOrgSettings(actor: Actor): boolean {
-  return actor.isSysAdmin || actor.isHrAdmin;
+  return actor.isSysAdmin;
 }
 
 export function canManageAccountsAndRoles(actor: Actor): boolean {
   return actor.isSysAdmin;
 }
 
+/**
+ * Both administrators can read the log, and that is intentional. It holds no
+ * review text, no private note and no respondent identity (see audit.ts), so
+ * reading it discloses nothing either role is not already trusted with — while
+ * an HR administrator genuinely needs to answer "who released this review, and
+ * when". Reading the log grants no access to the records it refers to.
+ */
 export function canReadAuditLog(actor: Actor): boolean {
   return actor.isSysAdmin || actor.isHrAdmin;
 }
