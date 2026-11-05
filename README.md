@@ -27,6 +27,39 @@ command**. If you started it somewhere else — a container, a remote box, a
 cloud session — `localhost` on your own computer will not reach it; use that
 host's address, or run the two commands above locally.
 
+### Starting a real organization instead
+
+`npm run setup` seeds 27 fictional employees, which is right for looking around
+and wrong for a real rollout. For a real one, skip the seed and create your own
+administrator:
+
+```bash
+npm run setup:blank
+```
+
+```bash
+npm run create-admin -- --email you@company.com --name "Your Name" --org "Your Company"
+```
+
+It prints a generated password once and stores only its hash; you are asked to
+change it at first sign-in. Then `npm run dev` and sign in.
+
+This exists as a command because every account-creating route in the
+application requires an authorized actor, and on an empty database none can
+exist — so without it a real organization would be locked out of its own
+installation. Shell access to the server is the right gate for a step that
+happens exactly once. The script refuses to run if an administrator already
+exists.
+
+The first account deliberately holds **both** administrative roles, because
+somebody has to start and granting only one would lock you out of half the
+application with nobody able to grant the other. That is not a good permanent
+arrangement — create a second administrator and then drop one of your two roles.
+See [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for why the split matters.
+
+From there: Administration → Organization for naming, colours, time zone and
+privacy thresholds; People → Import to bring in employees from a CSV.
+
 ### Signing in
 
 The seed creates a synthetic company, *Dreambuilder Construction & Remodeling*,

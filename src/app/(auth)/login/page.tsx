@@ -148,9 +148,17 @@ export default async function LoginPage({
             <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               <p className="font-semibold">No accounts exist yet</p>
               <p className="mt-1 leading-relaxed">
-                Run <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs">npm run db:seed</code> to
-                create the demonstration organization, or follow the first-run steps in the README to
-                set up a real one.
+                To set up a real organization, run{' '}
+                <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs">
+                  npm run create-admin -- --email you@company.com --name &quot;Your Name&quot;
+                </code>{' '}
+                and sign in with the password it prints.
+              </p>
+              <p className="mt-1.5 leading-relaxed">
+                To explore with sample data instead, run{' '}
+                <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs">npm run db:seed</code>.
+                That creates 27 fictional employees, which you would not want in a real
+                installation.
               </p>
             </div>
           )}

@@ -22,10 +22,11 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 | Development plans and account (browser) | **28 / 28 passed** |
 | AI gating and attachments (browser) | **26 / 26 passed** |
 | Demonstration sign-in panel (browser) | **7 / 7 passed** |
+| First run on an empty organization (browser) | **4 / 4 passed** |
 | Layout, desktop 1440px and phone 390px | No horizontal overflow on 20 pages |
 | Console / server errors during browser runs | None |
 
-**304 automated checks**, all passing.
+**308 automated checks**, all passing.
 
 A caveat about that number: it was 297 and entirely green while the sign-in
 page was returning HTTP 500 under its documented default configuration. The
@@ -203,13 +204,24 @@ Recorded because the method matters more than the count.
    real. Found by cloning the pushed branch and following the README exactly.
    Fixed, and `tests/browser/devlogin-test.js` now covers it.
 
-8. **`npm run setup` failed on a clean clone.** `.env` is gitignored, so a
+8. **A real organization could not start at all.** Every account-creating
+   route requires an authorized actor, and on an empty database none can
+   exist — so there was no way to create the first administrator. The only
+   path in was `npm run db:seed`, which inserts 27 fictional employees. The
+   empty-state banner on the sign-in page even told the reader to "follow the
+   first-run steps in the README", and no such steps had been written.
+   `scripts/create-admin.ts` now bootstraps an organization and its first
+   administrator, the banner points at a command that exists, and
+   `tests/browser/bootstrap-test.js` verifies that the resulting account can
+   sign in and that all 24 main screens work with no data in them.
+
+9. **`npm run setup` failed on a clean clone.** `.env` is gitignored, so a
    fresh checkout has only `.env.example`, and Prisma needs `DATABASE_URL`
    before it can read the schema. The documented one-command setup therefore
    did not work for anybody but me. `scripts/setup-env.mjs` now creates `.env`
    with a generated `SESSION_SECRET` and never touches an existing one.
 
-9. **A documentation claim that was false.** The README said comparisons between
+10. **A documentation claim that was false.** The README said comparisons between
    incompatible templates were "refused rather than drawn". The code draws them
    with a caveat naming the differing templates. The document was corrected to
    match the code.

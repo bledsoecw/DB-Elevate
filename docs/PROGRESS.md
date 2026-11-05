@@ -83,37 +83,42 @@ being caught; `tests/browser/README.md` lists them.
 
 In the order I would do them.
 
-1. **Run the backup and restore procedure end to end.** It is written in
+1. **Get real people in.** The first-run path now exists (`npm run setup:blank`
+   then `npm run create-admin`), and CSV import is built and works on an empty
+   organization. This is the step that turns a demonstration into something
+   useful, and everything below matters less until it is done.
+
+2. **Run the backup and restore procedure end to end.** It is written in
    [DEPLOYMENT.md](DEPLOYMENT.md) from the schema and storage layout but has
    never been executed. It is the highest-value unverified thing here, because
    it is the one that matters on the worst day.
 
-2. **Generate and test the PostgreSQL migration.** Change the datasource,
+3. **Generate and test the PostgreSQL migration.** Change the datasource,
    regenerate, run the full suite against Postgres. Everything was built on
    SQLite; the schema should port cleanly but "should" is doing work in that
    sentence.
 
-3. **Run an accessibility audit.** Labels, focus management, heading order and
+4. **Run an accessibility audit.** Labels, focus management, heading order and
    contrast were built in and spot-checked, but no axe pass and no screen-reader
    pass has been done. Start with the review form and the results page, since
    those are the screens every employee has to use.
 
-4. **Add survey editing.** There is no edit path at all, so a typo means
+5. **Add survey editing.** There is no edit path at all, so a typo means
    creating the survey again. It must refuse to change `mode` on a launched
    survey and refuse to change questions once any response exists — the same
    freezing logic published template versions already use.
 
-5. **Implement e-mail delivery** if real notifications are wanted. One function
+6. **Implement e-mail delivery** if real notifications are wanted. One function
    in `src/server/email/transport.ts`, plus `EMAIL_TRANSPORT_CONFIGURED=true`.
    Everything around it — queueing, idempotency, the outbox, the held-not-sent
    reporting — is done.
 
-6. **Profile at realistic scale.** Seed several thousand employees and look at
+7. **Profile at realistic scale.** Seed several thousand employees and look at
    the reporting graph and the report queries. The in-memory graph walk is the
    first thing that will need replacing; see
    [ARCHITECTURE.md](ARCHITECTURE.md).
 
-7. **Bulk reviewer reassignment.** The exceptions worklist surfaces reviews
+8. **Bulk reviewer reassignment.** The exceptions worklist surfaces reviews
    assigned to deactivated people one at a time, which is tedious for a real
    departure.
 

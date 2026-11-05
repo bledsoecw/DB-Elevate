@@ -25,7 +25,9 @@
     "jobs:dry-run": "tsx --conditions=react-server scripts/run-jobs.ts --dry-run",
     "test:browser": "node tests/browser/catalog-test.js && node tests/browser/admin-test.js && node tests/browser/calibration-test.js && node tests/browser/development-test.js && node tests/browser/infra-test.js",
     "test:layout": "node tests/browser/layout-check.js",
-    "setup:env": "node scripts/setup-env.mjs"
+    "setup:env": "node scripts/setup-env.mjs",
+    "create-admin": "tsx --conditions=react-server scripts/create-admin.ts",
+    "setup:blank": "node scripts/setup-env.mjs && npm install && prisma migrate deploy && prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
