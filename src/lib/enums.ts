@@ -7,12 +7,13 @@
  * can never drift apart.
  */
 
-export const ROLES = ['SYS_ADMIN', 'HR_ADMIN', 'LEADERSHIP', 'EMPLOYEE'] as const;
+export const ROLES = ['SYS_ADMIN', 'HR_ADMIN', 'COMPENSATION_ADMIN', 'LEADERSHIP', 'EMPLOYEE'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
   SYS_ADMIN: 'System administrator',
   HR_ADMIN: 'HR / program administrator',
+  COMPENSATION_ADMIN: 'Compensation administrator',
   LEADERSHIP: 'Leadership (reporting access)',
   EMPLOYEE: 'Employee',
 };
@@ -21,7 +22,9 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   SYS_ADMIN:
     'Application administration: accounts, roles, branding, integrations, audit log. Does not grant blanket access to review content.',
   HR_ADMIN:
-    'Performance-program administration: people records, templates, cycles, surveys, calibration, HR-restricted records.',
+    'Performance-program administration: people records, templates, cycles, surveys, calibration, HR-restricted records. Does NOT include salary.',
+  COMPENSATION_ADMIN:
+    'Salary bands, pay history and compensation cycles. Deliberately separate from HR: salary is a different confidentiality class, and this role is never implied by another.',
   LEADERSHIP:
     'Aggregate reporting across the organization. No access to individual draft reviews or private notes.',
   EMPLOYEE: 'Own records, plus anything explicitly shared. Granted to every account.',
@@ -364,6 +367,54 @@ export const ENGAGEMENT_FACTORS = [
   'Communication',
   'Workload & Schedule',
 ] as const;
+
+// --- Compensation ----------------------------------------------------------
+
+export const COMPENSATION_CYCLE_STATUSES = [
+  'DRAFT',
+  'PLANNING',
+  'IN_APPROVAL',
+  'APPROVED',
+  'APPLIED',
+  'CANCELLED',
+] as const;
+export type CompensationCycleStatus = (typeof COMPENSATION_CYCLE_STATUSES)[number];
+export const COMPENSATION_CYCLE_STATUS_LABELS: Record<CompensationCycleStatus, string> = {
+  DRAFT: 'Draft',
+  PLANNING: 'Managers allocating',
+  IN_APPROVAL: 'Awaiting approval',
+  APPROVED: 'Approved, not yet applied',
+  APPLIED: 'Applied to pay records',
+  CANCELLED: 'Cancelled',
+};
+
+export const COMPENSATION_PARTICIPANT_STATUSES = [
+  'PENDING',
+  'DECIDED',
+  'SUBMITTED',
+  'APPROVED',
+  'CHANGES_REQUESTED',
+  'APPLIED',
+] as const;
+export type CompensationParticipantStatus = (typeof COMPENSATION_PARTICIPANT_STATUSES)[number];
+export const COMPENSATION_PARTICIPANT_STATUS_LABELS: Record<CompensationParticipantStatus, string> = {
+  PENDING: 'No decision yet',
+  DECIDED: 'Decided, not submitted',
+  SUBMITTED: 'Submitted for approval',
+  APPROVED: 'Approved',
+  CHANGES_REQUESTED: 'Changes requested',
+  APPLIED: 'Applied to pay',
+};
+
+export const PAY_CHANGE_TYPES = ['HIRE', 'MERIT', 'PROMOTION', 'ADJUSTMENT', 'CORRECTION'] as const;
+export type PayChangeType = (typeof PAY_CHANGE_TYPES)[number];
+export const PAY_CHANGE_TYPE_LABELS: Record<PayChangeType, string> = {
+  HIRE: 'Starting salary',
+  MERIT: 'Merit increase',
+  PROMOTION: 'Promotion',
+  ADJUSTMENT: 'Adjustment',
+  CORRECTION: 'Correction',
+};
 
 // --- Competencies ----------------------------------------------------------
 

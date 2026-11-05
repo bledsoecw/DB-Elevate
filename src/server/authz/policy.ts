@@ -92,6 +92,82 @@ export function canRunCalibration(actor: Actor): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Compensation
+//
+// A deliberately separate access model. Salary is a different confidentiality
+// class from performance: in most organizations it is explicitly NOT for the
+// direct manager who writes the review, and it is often restricted to finance
+// and senior leadership regardless of the reporting line.
+//
+// So COMPENSATION_ADMIN is never implied by HR_ADMIN, SYS_ADMIN or LEADERSHIP.
+// Somebody who needs both is granted both, and the grant is audited.
+// ---------------------------------------------------------------------------
+
+export function canAdministerCompensation(actor: Actor): boolean {
+  return actor.isCompensationAdmin;
+}
+
+/** Everyone may see their own pay. */
+export function canViewOwnCompensation(actor: Actor, employeeId: string): boolean {
+  return actor.employeeId !== null && actor.employeeId === employeeId;
+}
+
+export interface CompParticipantRef {
+  employeeId: string;
+  /** The manager who owns this allocation, snapshotted at launch. */
+  managerIdSnapshot: string | null;
+  cycleStatus: string;
+  status: string;
+}
+
+/**
+ * Whether the actor may see this person's pay inside a compensation cycle.
+ *
+ * A manager sees their own reports' current pay only while they are actually
+ * allocating — that is the narrowest grant that lets the task be done, and it
+ * closes again when the cycle does. It is scoped to the manager of record at
+ * launch, so a reorganization mid-cycle does not move who is deciding
+ * somebody's pay.
+ */
+export function canViewCompensationParticipant(
+  actor: Actor,
+  participant: CompParticipantRef,
+): boolean {
+  if (canAdministerCompensation(actor)) return true;
+  if (canViewOwnCompensation(actor, participant.employeeId)) {
+    // The employee sees their own line only once it has been applied —
+    // an in-flight proposal is not yet a fact about their pay.
+    return participant.status === 'APPLIED';
+  }
+  if (!actor.employeeId) return false;
+  if (participant.managerIdSnapshot !== actor.employeeId) return false;
+  return ['PLANNING', 'IN_APPROVAL', 'APPROVED', 'APPLIED'].includes(participant.cycleStatus);
+}
+
+/** Whether the actor may set the number. Only while the cycle is open for it. */
+export function canAllocateCompensation(
+  actor: Actor,
+  participant: CompParticipantRef,
+): boolean {
+  if (participant.cycleStatus !== 'PLANNING') return false;
+  // An employee never allocates their own pay, even if they manage themselves
+  // through some data accident.
+  if (actor.employeeId === participant.employeeId) return false;
+  if (canAdministerCompensation(actor)) return true;
+  return actor.employeeId !== null && participant.managerIdSnapshot === actor.employeeId;
+}
+
+/** Approving a submitted allocation is a compensation-administration act. */
+export function canApproveCompensation(actor: Actor): boolean {
+  return actor.isCompensationAdmin;
+}
+
+/** Salary bands are configuration, but they are salary configuration. */
+export function canManageSalaryBands(actor: Actor): boolean {
+  return actor.isCompensationAdmin;
+}
+
+// ---------------------------------------------------------------------------
 // Employee records
 // ---------------------------------------------------------------------------
 

@@ -268,7 +268,13 @@ export async function runReviewWorkflow({ browser, runner }: Ctx): Promise<void>
     await gotoApp(hr.page, `${participantHref}`);
     await hr.page.getByRole('button', { name: /release to employee/i }).click();
     await hr.page.getByRole('dialog').getByRole('button', { name: /^release$/i }).click();
-    await hr.page.waitForSelector('text=/Released/i', { timeout: 20000 });
+    // Wait for the release control to go away, not for the word "Released" —
+    // that word is already on this page before the click (the status legend
+    // and the timeline both use it), so waiting for it resolves instantly and
+    // the next step races this request instead of following it.
+    await hr.page
+      .getByRole('button', { name: /release to employee/i })
+      .waitFor({ state: 'detached', timeout: 20000 });
     return 'released';
   });
   await shot(hr.page, 'workflow-03-hr-participant');

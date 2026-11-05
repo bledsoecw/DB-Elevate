@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const { PrismaClient } = require('@prisma/client');
 const BASE = 'http://localhost:3000';
 const PASSWORD = 'ElevateDemo!2026';
 const stamp = Date.now().toString().slice(-6);
@@ -119,15 +120,23 @@ function check(name, ok, detail) {
   check('Closing a plan without an outcome is refused', closeNoOutcome === 422, `HTTP ${closeNoOutcome}`);
 
   // --- The subject: can record progress, cannot change terms --------------
-  const subjectEmail = await page.evaluate(async () => {
-    const link = document.querySelector('a[href^="/people/"]');
-    if (!link) return null;
-    const res = await fetch(link.getAttribute('href'), { credentials: 'same-origin' });
-    const html = await res.text();
-    const m = html.match(/[a-z]+\.[a-z]+@dreambuilder\.example/);
-    return m ? m[0] : null;
-  });
+  // Resolved from the database rather than scraped from the page. A scrape
+  // that picks up the wrong link signs in as the manager, and then every
+  // "the subject cannot" check passes while testing nothing at all.
+  const subjectEmail = await (async () => {
+    const db = new PrismaClient();
+    try {
+      const plan = await db.developmentPlan.findUnique({
+        where: { id: pipId },
+        select: { employee: { select: { user: { select: { email: true } } } } },
+      });
+      return plan?.employee.user?.email ?? null;
+    } finally {
+      await db.$disconnect();
+    }
+  })();
   check('Found the subject employee', Boolean(subjectEmail), subjectEmail ?? 'none');
+  if (!subjectEmail) throw new Error('Could not resolve the improvement plan’s subject.');
 
   await signIn(subjectEmail);
   await page.goto(pipUrl);

@@ -31,7 +31,7 @@ calling the route, not by clicking the button.
 
 ## Roles
 
-Four granted roles, stored in `UserRole` and additive. Every grant and
+Five granted roles, stored in `UserRole` and additive. Every grant and
 revocation is audited.
 
 ### System administrator (`SYS_ADMIN`)
@@ -54,6 +54,31 @@ the exceptions worklist, organization-wide reporting.
 
 **Grants no application administration.** No accounts, no roles, no branding,
 no mail or AI settings.
+
+### Compensation administrator (`COMPENSATION_ADMIN`)
+
+Runs pay. Salary bands, compensation cycles, manager budgets, approvals,
+applying approved increases to pay history, and every employee's pay history.
+
+**Grants no access to review content.** A compensation administrator sees a
+released *score* where one exists, because that is what informs a merit
+recommendation, and sees nothing else from a review — not the written answers,
+not a self-assessment, not peer feedback, not a private note, not an
+improvement plan.
+
+**Not implied by `HR_ADMIN`, and `HR_ADMIN` is not implied by it.** This is the
+second load-bearing decision in the model, and it is deliberately
+uncomfortable: the person who runs the review programme does not see what
+anybody is paid, and the person who decides pay does not read the reviews. Both
+halves are enforced, and `tests/unit/policy.test.ts` pins both — the
+compensation tests assert that an HR administrator is refused, which means
+quietly widening the role later breaks a test rather than a confidence.
+
+A manager is a separate case. A manager with people in an open cycle sees those
+people's **current salary only**, only while the cycle is open for allocation,
+and only for the reporting line as it stood when the cycle launched
+(`managerIdSnapshot`). They never see pay history, never see anybody outside
+that snapshot, and never see their own line as theirs to decide.
 
 ### Leadership (`LEADERSHIP`)
 
@@ -231,6 +256,53 @@ See [PRIVACY.md](PRIVACY.md) for the anonymity model, which is the substantial
 part. In permission terms: HR and leadership can view results, HR can view
 participation, and nobody can view an anonymous respondent's identity because it
 is not stored.
+
+## Compensation
+
+Four predicates, in `policy.ts`, none of which consults the reporting line
+except where stated:
+
+| Predicate | True for |
+| --- | --- |
+| `canAdministerCompensation` | `COMPENSATION_ADMIN` only |
+| `canApproveCompensation` | `COMPENSATION_ADMIN` only |
+| `canManageSalaryBands` | `COMPENSATION_ADMIN` only |
+| `canViewCompensationParticipant` | The administrator; the manager of record at launch; the employee themselves, once the cycle is `APPLIED` |
+| `canAllocateCompensation` | The manager of record at launch, while the cycle is open and the line is not their own |
+
+What each role can see of somebody else's pay:
+
+| | Current salary in an open cycle | Pay history | Salary bands | Approve | Apply to pay |
+| --- | --- | --- | --- | --- | --- |
+| Compensation administrator | All | All | Edit | Yes | Yes |
+| Manager | Own line at launch only | **No** | No | No | No |
+| HR administrator | **No** | **No** | No | No | No |
+| System administrator | **No** | **No** | No | No | No |
+| Leadership | **No** | **No** | No | No | No |
+| The employee | Own, once applied | Own, always | No | No | No |
+
+Three rules that are easy to lose and are therefore tested:
+
+1. **Nobody allocates their own pay.** `canAllocateCompensation` returns false
+   when `participant.employeeId === actor.employeeId`, whatever else is true of
+   the actor. A manager who is themselves in the cycle sees their own row and
+   gets no control on it.
+2. **Approving is not applying.** Approval marks the figure correct; applying
+   writes it to pay history. They are separate endpoints, both restricted to
+   the compensation administrator, and a cycle can sit approved indefinitely.
+3. **The snapshot governs, not today's org chart.** A reorganization after
+   launch does not move who allocates. The participant carries
+   `managerIdSnapshot`, and the predicate reads that, exactly as a review
+   participant does.
+
+Pay history is append-only. A correction is a new `CompensationRecord` row with
+`changeType: 'CORRECTION'`; nothing updates or deletes an earlier row, so "what
+were we paying them in March" always has an answer.
+
+**There is no compensation export.** Nothing in the application writes salary
+to a CSV or a file. See [EXTENSION-PLAN.md](EXTENSION-PLAN.md) — the audience
+for such an export has not been defined, and the safe default until it is, is
+that it does not exist.
 
 ## Reporting and exports
 

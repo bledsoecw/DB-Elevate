@@ -393,3 +393,72 @@ export const RECOGNITION_VALUES: { name: string; description: string; icon: stri
   { name: 'Problem Solver', description: 'Found a sound answer to a hard site problem.', icon: 'lightbulb', colorHex: '#b45309' },
   { name: 'Teaching Moment', description: 'Brought someone else along.', icon: 'graduation-cap', colorHex: '#0e7490' },
 ];
+
+/**
+ * Salary bands, by job title.
+ *
+ * Whole dollars here; the seed converts to minor units. Two titles are left
+ * out on purpose so the "no band set" state is visible on the bands page and
+ * so at least one person in a cycle gets a recommendation resting on
+ * performance alone.
+ *
+ * Several midpoints are deliberately not halfway between the minimum and the
+ * maximum. A target rate is a market reference, not an average of the edges,
+ * and the compa-ratio is measured against it — see src/lib/money.ts.
+ */
+export const SALARY_BANDS: {
+  jobTitle: string;
+  min: number;
+  mid?: number;
+  max: number;
+}[] = [
+  { jobTitle: 'Owner / President', min: 160_000, mid: 200_000, max: 240_000 },
+  { jobTitle: 'General Manager', min: 130_000, mid: 152_000, max: 185_000 },
+  { jobTitle: 'Operations Manager', min: 95_000, mid: 112_000, max: 135_000 },
+  { jobTitle: 'Field Superintendent', min: 85_000, mid: 99_000, max: 120_000 },
+  { jobTitle: 'Crew Lead', min: 62_000, mid: 72_000, max: 85_000 },
+  { jobTitle: 'Lead Carpenter', min: 58_000, mid: 67_000, max: 78_000 },
+  { jobTitle: 'Carpenter', min: 48_000, mid: 56_000, max: 66_000 },
+  { jobTitle: 'Finish Carpenter', min: 52_000, mid: 61_000, max: 72_000 },
+  { jobTitle: 'Tile & Flooring Specialist', min: 50_000, mid: 59_000, max: 70_000 },
+  { jobTitle: 'Carpenter Apprentice', min: 36_000, mid: 41_000, max: 48_000 },
+  { jobTitle: 'Senior Project Manager', min: 95_000, mid: 111_000, max: 130_000 },
+  { jobTitle: 'Project Manager', min: 75_000, mid: 88_000, max: 105_000 },
+  { jobTitle: 'Project Coordinator', min: 52_000, mid: 60_000, max: 70_000 },
+  { jobTitle: 'Sales Manager', min: 90_000, mid: 105_000, max: 130_000 },
+  { jobTitle: 'Design Consultant', min: 55_000, mid: 65_000, max: 80_000 },
+  { jobTitle: 'Estimator', min: 60_000, mid: 71_000, max: 85_000 },
+  { jobTitle: 'HR & Office Manager', min: 70_000, mid: 81_000, max: 95_000 },
+  { jobTitle: 'Office Administrator', min: 42_000, mid: 49_000, max: 58_000 },
+  { jobTitle: 'Bookkeeper', min: 48_000, max: 66_000 },
+  // Deliberately omitted: Warehouse & Equipment Coordinator, Systems
+  // Administrator. No range has been agreed for either.
+];
+
+/**
+ * Where each person's current salary sits, as a fraction of their band.
+ *
+ * Expressed as a position between the minimum (0) and maximum (1) rather than
+ * as a figure, so the salaries stay consistent with the bands above if either
+ * is edited. Anybody not listed lands at 0.45, modestly below midpoint, which
+ * is the ordinary case.
+ *
+ * Every figure is invented. This is demonstration data for a fictional
+ * company; it is not anybody's pay.
+ */
+export const PAY_POSITIONS: Record<string, number> = {
+  dana: 0.82,
+  marcus: 0.68,
+  grant: 0.58,
+  abebe: 0.52,
+  rosa: 0.46,
+  priya: 0.61,
+  terrence: 0.5,
+  // Deliberately high in band: an outstanding performer near the ceiling, so
+  // the matrix's "paid above the midpoint" row gets exercised.
+  yuki: 0.88,
+  // Deliberately low in band: newly promoted, so a larger increase is
+  // suggested and the band position is doing visible work.
+  jamal: 0.18,
+  gloria: 0.4,
+};

@@ -26,6 +26,8 @@ export interface Actor {
 
   isSysAdmin: boolean;
   isHrAdmin: boolean;
+  /** Salary access. Deliberately never implied by another role. */
+  isCompensationAdmin: boolean;
   isLeadership: boolean;
   /** Structural: true when the employee currently has at least one direct report. */
   isManager: boolean;
@@ -149,6 +151,7 @@ export async function actorFromSession(session: ResolvedSession): Promise<Actor>
     jobTitleId: employee?.jobTitleId ?? null,
     isSysAdmin: roles.includes('SYS_ADMIN'),
     isHrAdmin: roles.includes('HR_ADMIN'),
+    isCompensationAdmin: roles.includes('COMPENSATION_ADMIN'),
     isLeadership: roles.includes('LEADERSHIP'),
     isManager: directReportIds.length > 0,
     directReportIds,

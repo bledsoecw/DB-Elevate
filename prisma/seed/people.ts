@@ -30,7 +30,7 @@ export interface SeedPerson {
   workLocation: string;
   crew?: string;
   reviewCohort: string;
-  roles: ('SYS_ADMIN' | 'HR_ADMIN' | 'LEADERSHIP' | 'EMPLOYEE')[];
+  roles: ('SYS_ADMIN' | 'HR_ADMIN' | 'COMPENSATION_ADMIN' | 'LEADERSHIP' | 'EMPLOYEE')[];
   /** Shown on the development sign-in panel. */
   demoNote?: string;
 }
@@ -428,7 +428,13 @@ export const PEOPLE: SeedPerson[] = [
     employmentType: 'part_time',
     workLocation: 'Main Office',
     reviewCohort: 'Office',
-    roles: ['EMPLOYEE'],
+    // The compensation administrator, and deliberately not the HR
+    // administrator. Gloria sees salary and pay cycles; she does not see
+    // review content. Priya runs the review programme and sees no salary at
+    // all. Holding the two roles apart is the point of having two roles.
+    roles: ['EMPLOYEE', 'COMPENSATION_ADMIN'],
+    demoNote:
+      'Compensation administrator. Sees salary, bands and pay cycles — and no review content. Use this account to check that the split from HR holds.',
   },
   {
     key: 'sam',

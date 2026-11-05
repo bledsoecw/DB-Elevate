@@ -14,34 +14,72 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 |---|---|
 | `npm run typecheck` | Clean |
 | `npm run build` (production) | Succeeds |
-| `npm test` — unit | **134 / 134 passed** |
+| `npm test` — unit | **177 / 177 passed** |
 | `npm run test:e2e` — browser workflow and permissions | **43 / 43 passed** |
 | Catalogue administration (browser) | **16 / 16 passed** |
 | System administration and role separation (browser) | **27 / 27 passed** |
 | Calibration (browser) | **23 / 23 passed** |
 | Development plans and account (browser) | **28 / 28 passed** |
 | AI gating and attachments (browser) | **26 / 26 passed** |
+| Competency visibility (browser) | **6 / 6 passed** |
+| Compensation access (browser) | **44 / 44 passed** |
+| Compensation flow end to end (browser) | **22 / 22 passed** |
+| Compensation budget ceilings (browser) | **18 / 18 passed** |
 | Demonstration sign-in panel (browser) | **7 / 7 passed** |
 | First run on an empty organization (browser) | **4 / 4 passed** |
 | Layout, desktop 1440px and phone 390px | No horizontal overflow on 20 pages |
 | Console / server errors during browser runs | None |
 
-**308 automated checks**, all passing.
+**441 automated checks**, all passing.
 
-A caveat about that number: it was 297 and entirely green while the sign-in
-page was returning HTTP 500 under its documented default configuration. The
-suites all authenticated by filling the form directly, so none of them ever
-rendered the demo panel. Coverage counts measure what was looked at, not what
-works.
+Two caveats about that number, both earned.
 
-## Unit tests (134)
+**First:** it was 297 and entirely green while the sign-in page was returning
+HTTP 500 under its documented default configuration. Every suite authenticated
+by filling the form directly, so none of them ever rendered the demo panel.
+
+**Second, and found while adding the compensation suites:** three of these
+suites had been passing *for the wrong reason* since the shell was restyled.
+The restyle added an employee-search box to the header, which changed what
+`page.locator('input').first()` and `a[href^="/people/"]` resolve to. The
+consequences:
+
+- `catalog-test.js` typed scale and competency names into the search box. The
+  save succeeded — saving nothing — and the assertion looked for the new name
+  as page text, which an `<input>` value never is.
+- `admin-test.js` edited settings fields by positional index, which had
+  shifted by one.
+- `development-test.js` scraped the subject's e-mail from the first
+  `/people/` link, picked up the wrong person, and signed in **as the
+  manager**. Every "the subject cannot…" check then passed while testing
+  nothing. The authorization was in fact correct — re-run against the right
+  account it returns 403 on all three writes — but the suite was not
+  demonstrating that.
+
+A fourth, in `tests/e2e/review-workflow.ts`, was found in the same pass: the
+step that released a review waited for `text=/Released/i`, which is on that
+page *before* the release as well (the status legend and the timeline both use
+the word). The wait resolved instantly, so the next step — "releasing twice is
+refused" — raced the first release rather than following it, and intermittently
+reported that a second release returned HTTP 200. The guard was correct all
+along; the test now waits for the release control to detach, which only happens
+afterwards.
+
+All of these now locate fields by label, resolve subjects from the database
+rather than by scraping the page, and wait on something that is false before
+the action. The pattern is the same one as the original 500: **a coverage count
+measures what was looked at, not what works**, and a test that cannot find its
+target passes most loudly of all.
+
+## Unit tests (177)
 
 Pure functions, no database.
 
 | Suite | Tests | Covers |
 |---|---|---|
 | `review-score` | 24 | Normalization, exclusion reasons, section and overall weighting, final-score renormalization, drafts excluded |
-| `policy` | 51 | The permission matrix, including the administrative role split |
+| `policy` | 60 | The permission matrix, including both administrative role splits |
+| `compensation-money` | 34 | Integer minor units and basis points, rounding once, band midpoints, the merit matrix, budget arithmetic |
 | `survey-privacy` | 24 | Threshold, small-group and complement suppression, filter limits, verbatim rules, stable shuffle |
 | `goal-progress` | 21 | Reported vs computed, divergence, milestone denominators, risk flags |
 | `ai-provider` | 14 | Mock determinism, in-text labelling, refusal of unimplemented providers, context digest |
@@ -131,6 +169,43 @@ a reload; the subject cannot add an action, rename the plan or cancel it
 (**403** on all three); closing without an outcome is refused (**422**).
 Password change refuses a wrong current password, a weak password and reuse
 (**422** each).
+
+**Compensation access (44/44)** — the role split in both directions. An HR
+administrator and a system administrator are each refused at every
+compensation write route (**403**): creating a cycle, applying it to pay,
+setting a salary band, setting or dividing a budget, approving an allocation.
+Neither can read anybody's pay history. A manager with people in an open cycle
+sees their own line and its current pay, sees **no** total pool and **no**
+budgets panel, cannot allocate for anybody outside the launch snapshot
+(**404**), cannot allocate for **themselves** (**404**), cannot approve
+(**403**), cannot apply (**403**), cannot raise their own budget (**403**), and
+cannot read a report's pay history. An employee sees their own pay and history,
+cannot open a cycle, cannot read a colleague's pay by employee id, and cannot
+allocate or launch.
+
+Targets for these refusals come from the database, not from scraping the page,
+for the reason given in the caveats above — a refusal test that cannot find
+something to attack reports a pass.
+
+**Compensation flow (22/22)** — driven through the interface. A manager opens
+the dialog, types 4.25%, and the previewed increase and resulting salary are
+asserted against the integers computed independently in the test. An override
+with no reason is refused. After saving, the **stored** `decidedAmountMinor` is
+the same integer that was previewed, and `newBaseMinor` is the base plus that
+integer. Submission is withheld while anybody is undecided. The administrator
+approves; **nothing is in pay history at that point, with approvals on record**.
+Applying then writes one `MERIT` row per approved participant, at exactly the
+approved new base, with nothing unapproved leaking in, and the earlier rows
+still beneath the new one.
+
+**Compensation budget ceilings (18/18)** — the three states. No budget row:
+the manager is told nothing is enforced, and submission succeeds. A row of
+zero: labelled "Nothing to give" to the administrator, the manager is told
+every decision has to be 0%, a submission containing increases is refused
+(**409**) with a message naming the zero budget rather than quoting an overage,
+and a submission where everything is 0% succeeds. A figure: going over is
+reported on screen while allocating and not blocked, and submission is refused
+(**409**) with the exact amount it is over by.
 
 **AI and attachments (26/26)** — AI reports itself disabled with a specific
 reason; a suggestion request is refused (**409**) with that reason; the mock
@@ -299,11 +374,14 @@ npm run test:e2e     # in another
 ```
 
 ```bash
-npm run test:browser          # the five supplementary suites, server must be up
+npm run test:browser          # every supplementary suite, server must be up
+npm run test:compensation     # just the three compensation suites
 npm run test:layout /tmp/shots  # layout check, writes screenshots
 ```
 
 The supplementary suites are committed under `tests/browser/` with a README
-covering what each one asserts and the residue they leave behind. Reseed
-afterwards (`SEED_FORCE=1 npx tsx prisma/seed.ts`) for a pristine demonstration
-state.
+covering what each one asserts and the residue they leave behind.
+`test:browser` and `test:compensation` re-seed around the suites that mutate
+the demonstration cycle, so they are repeatable; running one of those suites
+by hand leaves the cycle changed, and
+`SEED_FORCE=1 npx tsx prisma/seed.ts` restores it.

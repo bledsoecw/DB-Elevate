@@ -40,7 +40,9 @@ function check(name, ok, detail) {
   const saveDisabledInitially = await page.locator('button:has-text("Save settings")').isDisabled();
   check('Save is disabled until something changes', saveDisabledInitially);
 
-  const productInput = page.locator('input').nth(1);
+  // Located by label, not by index: the shell's employee-search box is also
+  // an input, so a positional index silently drifts when the chrome changes.
+  const productInput = page.getByLabel(/^Product name\b/).first();
   const originalProduct = await productInput.inputValue();
   await productInput.fill('DB Elevate Pilot');
   const saveEnabled = !(await page.locator('button:has-text("Save settings")').isDisabled());
@@ -51,13 +53,13 @@ function check(name, ok, detail) {
   await page.waitForSelector('text=All changes saved', { timeout: 20000 });
   await page.reload();
   await page.waitForSelector('[data-hydrated="true"]');
-  const persisted = await page.locator('input').nth(1).inputValue();
+  const persisted = await page.getByLabel(/^Product name\b/).first().inputValue();
   check('Product name persisted across a reload', persisted === 'DB Elevate Pilot', persisted);
 
   // The sidebar renders wordmarkText when it is set, falling back to the
   // product name only when it is blank — so drive the wordmark to prove the
   // chrome is read from the database rather than from a constant.
-  const wordmarkInput = page.locator('input').nth(2);
+  const wordmarkInput = page.getByLabel(/^Wordmark text\b/).first();
   const originalWordmark = await wordmarkInput.inputValue();
   await wordmarkInput.fill('Pilot Mark');
   await page.click('button:has-text("Save settings")');
@@ -69,11 +71,11 @@ function check(name, ok, detail) {
     brandText.includes('Pilot Mark'), brandText.split('\n')[0]);
 
   // Put both back exactly as they were.
-  await page.locator('input').nth(1).fill(originalProduct);
-  await page.locator('input').nth(2).fill(originalWordmark);
+  await page.getByLabel(/^Product name\b/).first().fill(originalProduct);
+  await page.getByLabel(/^Wordmark text\b/).first().fill(originalWordmark);
   await page.click('button:has-text("Save settings")');
   await page.waitForSelector('text=All changes saved', { timeout: 20000 });
-  const restored = await page.locator('input').nth(1).inputValue();
+  const restored = await page.getByLabel(/^Product name\b/).first().inputValue();
   check('Settings restored after the test', restored === originalProduct, restored);
 
   // --- A real mail provider cannot be chosen without a transport ----------

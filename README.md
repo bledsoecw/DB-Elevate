@@ -76,6 +76,7 @@ worth starting from, because they see genuinely different things:
 |---|---|---|
 | `priya.raghunathan@dreambuilder.example` | HR / program administrator | Templates, cycles, surveys, calibration, everyone's records |
 | `terrence.okafor@dreambuilder.example` | System administrator | Accounts, roles, branding, audit log — and *no* review content |
+| `gloria.mbeki@dreambuilder.example` | Compensation administrator | Merit cycles, salary bands, pay history — and *no* review content |
 | `rosa.delgado@dreambuilder.example` | Manager, 5 direct reports | Team reviews, team goals, one-on-ones |
 | `marcus.villanueva@dreambuilder.example` | Leadership + approver | Aggregate reporting, review approvals |
 | `yuki.tanabe@dreambuilder.example` | Employee, no reports | Own reviews, own goals, feedback received |
@@ -152,9 +153,30 @@ identifying filter combinations — in the screens *and* in the exports, because
 both call the same function. See [docs/PRIVACY.md](docs/PRIVACY.md).
 
 **Development.** Development plans, and performance improvement plans as a
-restricted personnel record. Competency libraries by role with written
+restricted personnel record — the subject can record progress against one but
+cannot reword, add to or cancel it. Competency libraries by role with written
 behavioural descriptors per career level. Calibration sessions that record who
 decided what and why.
+
+**Competencies.** What each role is assessed on, with written behavioural
+descriptors per career level, and how a person has actually been rated across
+released reviews. Ratings on different scales are never pooled into one
+average; each scale is reported in its own terms. A manager sees their line, HR
+sees everyone, and a system administrator sees none of it, because a competency
+rating is review content.
+
+**Compensation.** Merit cycles with per-manager budgets, salary bands by job
+title, and append-only pay history. Money is integer minor units and increases
+are integer basis points throughout, so the figure previewed in a dialog is the
+same number of cents that is stored, totalled and eventually written to pay
+history. A suggested increase comes from the performance band and position in
+band and arrives with its reasoning in words; it populates a field, a person
+decides, and a figure that differs from the suggestion is refused without a
+written reason, with both numbers kept. Going over budget is reported while
+allocating and enforced at submission. Approving and applying are separate
+acts. A correction to pay history is a new row, never an edit. Compensation is
+a separate role from HR in both directions. See
+[docs/COMPENSATION.md](docs/COMPENSATION.md).
 
 **Reporting.** Completion, participation, rating distributions, goal progress,
 action-item progress and survey results, with stated denominators, filters,
@@ -177,7 +199,8 @@ and an exceptions worklist.
 | Role | Grants |
 |---|---|
 | **System administrator** | The application: accounts, roles, branding, integrations, the audit log. **No** access to review content, private notes or HR-restricted records. |
-| **HR / program administrator** | The performance programme: people records, templates, cycles, surveys, calibration, restricted records. **No** keys to the application. |
+| **HR / program administrator** | The performance programme: people records, templates, cycles, surveys, calibration, restricted records. **No** keys to the application, and **no** salary. |
+| **Compensation administrator** | Pay: salary bands, merit cycles, budgets, approvals, everybody's pay history. Sees a released *score* where one exists, because that informs a merit recommendation, and **no** other review content. Not implied by HR, and does not imply it. |
 | **Leadership** | Aggregate reporting across the organization. No individual drafts, no private notes. |
 | **Employee** | Own records, plus whatever is explicitly shared. Held by every account. |
 
@@ -201,9 +224,12 @@ Stated plainly, because a feature list that hides these is not useful.
 - **No live AI.** The mock provider works fully and costs nothing. A paid
   provider needs its HTTP call implemented *and* `AI_BILLING_APPROVED=true`.
   The application is complete without it.
-- **No compensation planning.** Assessed and deliberately deferred; see
-  [docs/EXTENSION-PLAN.md](docs/EXTENSION-PLAN.md) for why, and what it would
-  need.
+- **No compensation export, statement or proration.** Compensation planning is
+  built — cycles, bands, budgets, approvals, append-only pay history — but
+  nothing writes salary to a file, there is no printable statement, and an
+  increase applies to the current base in full with no proration for a mid-year
+  starter. See [docs/COMPENSATION.md](docs/COMPENSATION.md) and
+  [docs/EXTENSION-PLAN.md](docs/EXTENSION-PLAN.md).
 - **No SSO.** Password sessions only. An adapter seam exists
   (`User.externalIdpSubject`) but no provider is wired.
 - **SQLite by default.** The schema is Postgres-compatible and uses no SQLite-
@@ -231,7 +257,8 @@ Stated plainly, because a feature list that hides these is not useful.
 | [SCORING.md](docs/SCORING.md) | Every scoring rule, worked by hand |
 | [PRIVACY.md](docs/PRIVACY.md) | Private notes, confidential vs anonymous, survey suppression |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environment, migrations, jobs, backup and restore, recurring costs |
-| [EXTENSION-PLAN.md](docs/EXTENSION-PLAN.md) | Compensation planning, talent views, integrations, live AI |
+| [COMPENSATION.md](docs/COMPENSATION.md) | Merit cycles, integer money, bands, append-only pay history |
+| [EXTENSION-PLAN.md](docs/EXTENSION-PLAN.md) | Talent views, integrations, live AI, and what compensation still lacks |
 | [VERIFICATION.md](docs/VERIFICATION.md) | What was tested, what passed, what remains unverified |
 | [DECISIONS.md](docs/DECISIONS.md) | Decisions that are not obvious from the code, and why |
 | [PROGRESS.md](docs/PROGRESS.md) | Build state, so another session can continue accurately |

@@ -23,6 +23,7 @@ import {
   Shield,
   Target,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { cn, initials } from '@/lib/utils';
@@ -41,6 +42,7 @@ const ICONS: Record<string, typeof Home> = {
   'graduation-cap': GraduationCap,
   'line-chart': LineChart,
   award: Award,
+  wallet: Wallet,
   settings: Settings,
   shield: Shield,
 };

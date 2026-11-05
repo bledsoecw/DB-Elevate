@@ -122,8 +122,10 @@ In the order I would do them.
    assigned to deactivated people one at a time, which is tedious for a real
    departure.
 
-Deferred deliberately, with reasoning: compensation planning, advanced talent
-views, live AI, external integrations — [EXTENSION-PLAN.md](EXTENSION-PLAN.md).
+Deferred deliberately, with reasoning: advanced talent views, live AI, external
+integrations — [EXTENSION-PLAN.md](EXTENSION-PLAN.md). Compensation planning was
+deferred, then asked for, and is now built; three things inside it are still
+deferred and listed there (printable statements, a defined export, proration).
 
 ## Things to be careful about
 

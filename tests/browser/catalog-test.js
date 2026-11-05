@@ -72,12 +72,20 @@ function check(name, ok, detail) {
     const disabled = await valueInput.isDisabled();
     check('Frozen scale level inputs are disabled', disabled);
     // The name is still editable, and saving it must succeed.
-    const nameBox = page.locator('input').first();
+    // Scoped to the editor by its label: `page.locator('input').first()` is
+    // the shell's employee search box, and typing a scale name into that
+    // would save nothing while still leaving a 200 in the log.
+    const nameBox = page.getByLabel(/^Name\b/).first();
     const existing = await nameBox.inputValue();
-    await nameBox.fill(existing.replace(/ \[r\d+\]$/, '') + ` [r${stamp}]`);
+    const renamed = existing.replace(/ \[r\d+\]$/, '') + ` [r${stamp}]`;
+    await nameBox.fill(renamed);
     await page.click('button:has-text("Save changes")');
-    await page.waitForSelector(`text=[r${stamp}]`, { timeout: 20000 });
-    check('Frozen scale can still be renamed', true);
+    // The heading on the card, not the input's value: an input value is not a
+    // text node, so a `text=` selector can never match one.
+    await page.waitForSelector(`h3:has-text("[r${stamp}]"), h2:has-text("[r${stamp}]")`, {
+      timeout: 20000,
+    });
+    check('Frozen scale can still be renamed', true, renamed);
   }
 
   // --- Rating scale: server refuses a level change on a frozen scale -------
@@ -119,7 +127,7 @@ function check(name, ok, detail) {
   await page.click('button:has-text("New scale")');
   await page.waitForSelector('text=New rating scale');
   const scaleName = `Test scale ${stamp}`;
-  await page.locator('input').first().fill(scaleName);
+  await page.getByLabel(/^Name\b/).first().fill(scaleName);
   await page.fill('input[aria-label="Label for level 1"]', 'Not yet');
   await page.fill('input[aria-label="Label for level 2"]', 'Getting there');
   await page.fill('input[aria-label="Label for level 3"]', 'Solid');
@@ -132,7 +140,7 @@ function check(name, ok, detail) {
   // --- Duplicate level values are blocked before submit -------------------
   await page.click('button:has-text("New scale")');
   await page.waitForSelector('text=New rating scale');
-  await page.locator('input').first().fill(`Dup ${stamp}`);
+  await page.getByLabel(/^Name\b/).first().fill(`Dup ${stamp}`);
   await page.fill('input[aria-label="Value for level 2"]', '1');
   const addDisabled = await page.locator('button:has-text("Add scale")').isDisabled();
   const dupMessage = await page.locator('text=Each level needs a different number').count();
@@ -145,7 +153,7 @@ function check(name, ok, detail) {
   await page.click('button:has-text("New value")');
   await page.waitForSelector('text=New recognition value');
   const valName = `Test value ${stamp}`;
-  await page.locator('input').first().fill(valName);
+  await page.getByLabel(/^Name\b/).first().fill(valName);
   await page.click('button:has-text("Add value")');
   await page.waitForSelector(`text=${valName}`, { timeout: 20000 });
   check('Recognition value created', true);
@@ -170,7 +178,7 @@ function check(name, ok, detail) {
   await page.click('button:has-text("New library")');
   await page.waitForSelector('text=New competency library');
   const libName = `Test library ${stamp}`;
-  await page.locator('input').first().fill(libName);
+  await page.getByLabel(/^Name\b/).first().fill(libName);
   // Select the competency made earlier
   await page.locator('label', { hasText: compName }).first().click();
   await page.click('button:has-text("Add library")');

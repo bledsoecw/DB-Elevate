@@ -2,6 +2,12 @@ import { describe, it, expect } from 'vitest';
 import type { Actor } from '@/server/authz/actor';
 import {
   canAdministerApp,
+  canAdministerCompensation,
+  canAllocateCompensation,
+  canApproveCompensation,
+  canManageSalaryBands,
+  canViewCompensationParticipant,
+  type CompParticipantRef,
   canAdministerProgram,
   canManageAccountsAndRoles,
   canManageCycles,
@@ -50,6 +56,7 @@ function actor(overrides: Partial<Actor> = {}): Actor {
     jobTitleId: 'title-1',
     isSysAdmin: false,
     isHrAdmin: false,
+    isCompensationAdmin: false,
     isLeadership: false,
     isManager: false,
     directReportIds: [],
@@ -504,5 +511,93 @@ describe('administrative role separation', () => {
     expect(canManageOrgSettings(both)).toBe(true);
     expect(canAdministerProgram(both)).toBe(true);
     expect(canViewHrRestricted(both)).toBe(true);
+  });
+});
+
+/**
+ * Compensation access.
+ *
+ * This module was deferred once precisely because salary needs an access model
+ * that does not inherit from the reporting line. These assertions are that
+ * model: COMPENSATION_ADMIN is never implied, a manager's window is as narrow
+ * as the task requires, and nobody sets their own pay.
+ */
+describe('compensation access', () => {
+  const comp = actor({
+    employeeId: 'comp',
+    isCompensationAdmin: true,
+    roles: ['COMPENSATION_ADMIN', 'EMPLOYEE'],
+  });
+  const ref = (over: Partial<CompParticipantRef> = {}): CompParticipantRef => ({
+    employeeId: 'me',
+    managerIdSnapshot: 'mgr',
+    cycleStatus: 'PLANNING',
+    status: 'PENDING',
+    ...over,
+  });
+
+  it('is never implied by another role', () => {
+    // The whole point of the separate role. HR runs the performance programme
+    // and that must not come with everybody's salary.
+    expect(canAdministerCompensation(hr)).toBe(false);
+    expect(canAdministerCompensation(sysadmin)).toBe(false);
+    expect(canAdministerCompensation(manager)).toBe(false);
+    expect(canAdministerCompensation(employee)).toBe(false);
+    expect(canAdministerCompensation(comp)).toBe(true);
+  });
+
+  it('does not let HR or a system administrator read a pay line', () => {
+    expect(canViewCompensationParticipant(hr, ref())).toBe(false);
+    expect(canViewCompensationParticipant(sysadmin, ref())).toBe(false);
+  });
+
+  it('lets the manager of record see their report only while the cycle is live', () => {
+    expect(canViewCompensationParticipant(manager, ref({ managerIdSnapshot: 'mgr', cycleStatus: 'PLANNING' }))).toBe(true);
+    expect(canViewCompensationParticipant(manager, ref({ managerIdSnapshot: 'mgr', cycleStatus: 'DRAFT' }))).toBe(false);
+    expect(canViewCompensationParticipant(manager, ref({ managerIdSnapshot: 'mgr', cycleStatus: 'CANCELLED' }))).toBe(false);
+  });
+
+  it('scopes a manager to the line as it stood at launch', () => {
+    // A reorganization mid-cycle must not move who is deciding someone's pay.
+    expect(canViewCompensationParticipant(manager, ref({ managerIdSnapshot: 'someone-else' }))).toBe(false);
+  });
+
+  it('shows an employee their own line only once it is applied', () => {
+    const self = actor({ employeeId: 'me' });
+    expect(canViewCompensationParticipant(self, ref({ status: 'PENDING' }))).toBe(false);
+    expect(canViewCompensationParticipant(self, ref({ status: 'SUBMITTED' }))).toBe(false);
+    expect(canViewCompensationParticipant(self, ref({ status: 'APPROVED' }))).toBe(false);
+    expect(canViewCompensationParticipant(self, ref({ status: 'APPLIED' }))).toBe(true);
+  });
+
+  it('never lets anyone allocate their own pay', () => {
+    const selfManaging = actor({
+      employeeId: 'me',
+      isCompensationAdmin: true,
+      roles: ['COMPENSATION_ADMIN', 'EMPLOYEE'],
+    });
+    expect(canAllocateCompensation(selfManaging, ref({ employeeId: 'me' }))).toBe(false);
+  });
+
+  it('only allows allocation while the cycle is in planning', () => {
+    for (const cycleStatus of ['DRAFT', 'IN_APPROVAL', 'APPROVED', 'APPLIED', 'CANCELLED']) {
+      expect(canAllocateCompensation(manager, ref({ cycleStatus }))).toBe(false);
+    }
+    expect(canAllocateCompensation(manager, ref({ cycleStatus: 'PLANNING' }))).toBe(true);
+  });
+
+  it('confines approval and salary bands to the compensation role', () => {
+    expect(canApproveCompensation(comp)).toBe(true);
+    expect(canApproveCompensation(hr)).toBe(false);
+    expect(canApproveCompensation(manager)).toBe(false);
+    expect(canManageSalaryBands(comp)).toBe(true);
+    expect(canManageSalaryBands(hr)).toBe(false);
+  });
+
+  it('does not give a compensation administrator review content', () => {
+    // The separation runs both ways: salary access is not performance access.
+    expect(canViewHrRestricted(comp)).toBe(false);
+    expect(canAdministerProgram(comp)).toBe(false);
+    expect(canViewEmployeePerformanceRecord(comp, 'someone-else')).toBe(false);
   });
 });

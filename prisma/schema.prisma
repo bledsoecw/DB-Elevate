@@ -86,6 +86,9 @@ model Organization {
   scheduledJobs       ScheduledJob[]
   aiSuggestions       AiSuggestion[]
   importBatches       ImportBatch[]
+  salaryBands         SalaryBand[]
+  compensationRecords CompensationRecord[]
+  compensationCycles  CompensationCycle[]
 
   @@map("organizations")
 }
@@ -201,6 +204,7 @@ model JobTitle {
   active       Boolean     @default(true)
 
   employees           Employee[]
+  salaryBand          SalaryBand?
   competencyLibraryId String?
   competencyLibrary   CompetencyLibrary? @relation(fields: [competencyLibraryId], references: [id])
 
@@ -254,6 +258,11 @@ model Employee {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  compensationRecords     CompensationRecord[]
+  compensationBudgets     CompensationBudget[]      @relation("BudgetOwner")
+  compensationPartications CompensationParticipant[] @relation("CompParticipant")
+  compensationDecisions   CompensationParticipant[] @relation("CompDecidedBy")
 
   managerAssignments ManagerAssignment[] @relation("AssignmentEmployee")
   managedAssignments ManagerAssignment[] @relation("AssignmentManager")
@@ -603,6 +612,7 @@ model ReviewCycle {
 
   participants        CycleParticipant[]
   calibrationSessions CalibrationSession[]
+  compensationCycles  CompensationCycle[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1668,4 +1678,191 @@ model ImportBatch {
 
   @@index([orgId, status])
   @@map("import_batches")
+}
+
+// ---------------------------------------------------------------------------
+// Compensation
+//
+// Deliberately a separate area with its own access role. Salary is a different
+// confidentiality class from performance: it is often explicitly NOT for the
+// direct manager who writes the review, and inheriting the reporting line
+// would hand every manager their reports' pay. See docs/PERMISSIONS.md.
+//
+// All money is integer minor units and all percentages integer basis points.
+// See src/server/compensation/money.ts for why, and for the arithmetic.
+// ---------------------------------------------------------------------------
+
+/// A pay band attached to a job title. Optional — without one, a compa-ratio
+/// is not computed rather than guessed.
+model SalaryBand {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  jobTitleId String   @unique
+  jobTitle   JobTitle @relation(fields: [jobTitleId], references: [id], onDelete: Cascade)
+
+  currency     String @default("USD")
+  minMinor     Int
+  midMinor     Int?
+  maxMinor     Int
+  effectiveFrom DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
+  @@map("salary_bands")
+}
+
+/// Append-only salary history. Rows are never updated — a correction is a new
+/// row with changeType CORRECTION, so "what did we pay them in March" always
+/// has an answer.
+model CompensationRecord {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  baseMinor Int
+  currency  String @default("USD")
+
+  effectiveDate DateTime
+  /// HIRE | MERIT | PROMOTION | ADJUSTMENT | CORRECTION
+  changeType    String
+  note          String?
+
+  sourceCycleId String?
+  sourceCycle   CompensationCycle? @relation(fields: [sourceCycleId], references: [id], onDelete: SetNull)
+
+  recordedByUserId String?
+  isDemoData       Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, effectiveDate])
+  @@index([orgId])
+  @@map("compensation_records")
+}
+
+model CompensationCycle {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name     String
+  currency String @default("USD")
+  /// DRAFT | PLANNING | IN_APPROVAL | APPROVED | APPLIED | CANCELLED
+  status   String @default("DRAFT")
+
+  /// When approved increases take effect. Distinct from approval date.
+  effectiveDate DateTime
+  /// When managers are expected to have submitted.
+  dueAt         DateTime?
+
+  /// The performance cycle whose released scores inform recommendations.
+  /// Optional: a cycle can run without one, and then no recommendation is made.
+  reviewCycleId String?
+  reviewCycle   ReviewCycle? @relation(fields: [reviewCycleId], references: [id], onDelete: SetNull)
+
+  /// Org-wide pool, in minor units. Manager pools are allocated from it.
+  totalPoolMinor Int @default(0)
+
+  notes       String?
+  createdById String?
+  launchedAt  DateTime?
+  approvedAt  DateTime?
+  appliedAt   DateTime?
+  isDemoData  Boolean   @default(false)
+
+  participants CompensationParticipant[]
+  budgets      CompensationBudget[]
+  records      CompensationRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, status])
+  @@map("compensation_cycles")
+}
+
+/// A manager's pool for one cycle.
+model CompensationBudget {
+  id      String            @id @default(cuid())
+  cycleId String
+  cycle   CompensationCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  ownerEmployeeId String
+  owner           Employee @relation("BudgetOwner", fields: [ownerEmployeeId], references: [id], onDelete: Cascade)
+
+  poolMinor Int @default(0)
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, ownerEmployeeId])
+  @@map("compensation_budgets")
+}
+
+model CompensationParticipant {
+  id      String            @id @default(cuid())
+  cycleId String
+  cycle   CompensationCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation("CompParticipant", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  /// Snapshotted at launch, same principle as a review cycle: a reorganization
+  /// must not move who is allocating somebody's pay mid-cycle.
+  managerIdSnapshot      String?
+  managerNameSnapshot    String?
+  jobTitleNameSnapshot   String?
+  departmentNameSnapshot String?
+
+  currentBaseMinor Int
+  currency         String @default("USD")
+
+  /// Band at launch, so a later band change does not re-write the compa-ratio
+  /// a decision was made against. The midpoint is snapshotted separately
+  /// because an agreed midpoint need not be halfway between min and max, and
+  /// it is the denominator of the compa-ratio.
+  bandMinMinor Int?
+  bandMidMinor Int?
+  bandMaxMinor Int?
+
+  /// Released review score at launch, and the band it mapped to. Null when the
+  /// person had no released review — which is shown, not defaulted.
+  performanceScore Float?
+  performanceBand  String?
+
+  /// What the matrix suggested, kept so an override is visible as an override.
+  recommendedBp Int?
+
+  /// The manager's decision.
+  decidedBp       Int?
+  decidedAmountMinor Int?
+  newBaseMinor    Int?
+  rationale       String?
+
+  /// PENDING | DECIDED | SUBMITTED | APPROVED | CHANGES_REQUESTED | APPLIED
+  status String @default("PENDING")
+
+  decidedByEmployeeId String?
+  decidedBy           Employee? @relation("CompDecidedBy", fields: [decidedByEmployeeId], references: [id])
+  decidedAt           DateTime?
+  submittedAt         DateTime?
+  approvedByUserId    String?
+  approvedAt          DateTime?
+  approvalNote        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, employeeId])
+  @@index([cycleId, status])
+  @@index([managerIdSnapshot])
+  @@map("compensation_participants")
 }

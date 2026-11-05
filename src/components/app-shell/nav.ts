@@ -41,6 +41,7 @@ export function navigationFor(actor: Actor): NavSection[] {
   const isHr = actor.isHrAdmin;
   const isSys = actor.isSysAdmin;
   const isLeadership = actor.isLeadership;
+  const isComp = actor.isCompensationAdmin;
 
   const main: NavItem[] = [
     { key: 'home', label: 'Home', href: '/', icon: 'home', description: 'Your dashboard' },
@@ -131,6 +132,30 @@ export function navigationFor(actor: Actor): NavSection[] {
           ? [{ key: 'comp-team', label: isHr ? 'Everyone' : "My team", href: '/competencies/team' }]
           : []),
         ...(isHr ? [{ key: 'comp-admin', label: 'Manage competencies', href: '/admin/competencies' }] : []),
+      ],
+    },
+    {
+      // Everyone gets this section, because everyone can see their own pay.
+      // A manager with nothing to allocate and no compensation role lands on
+      // their own pay rather than an empty administrative screen — the
+      // section header is honest either way.
+      key: 'compensation',
+      label: 'Compensation',
+      href: '/compensation',
+      icon: 'wallet',
+      description: isComp
+        ? 'Merit cycles, budgets, salary bands and pay history'
+        : isManager
+          ? 'Your own pay, and pay decisions waiting on you'
+          : 'Your salary and every change on record',
+      children: [
+        { key: 'comp-me', label: 'My pay', href: '/compensation/me' },
+        ...(isComp || isManager
+          ? [{ key: 'comp-cycles', label: 'Pay cycles', href: '/compensation' }]
+          : []),
+        ...(isComp
+          ? [{ key: 'comp-bands', label: 'Salary bands', href: '/compensation/bands' }]
+          : []),
       ],
     },
     {

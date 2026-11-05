@@ -6,61 +6,42 @@ not the same as "nearly done".
 
 ## Compensation planning
 
-**Status: assessed, not built. Deliberate.**
+**Status: built.** See `docs/COMPENSATION.md`.
 
-The brief asked for compensation planning to be assessed and kept in a
-documented extension plan unless it could be completed without compromising the
-core. It cannot, and the reason is not effort.
+This was deferred, assessed, and then asked for. It was built with the
+safeguards the deferral said it needed, each of which is a constraint in the
+code rather than a line in a document:
 
-Compensation planning is not another module that happens to sit next to reviews.
-It changes what the application *is*:
+| What the deferral said it needed | Where it is |
+| --- | --- |
+| Integer minor units, no floating point | `src/lib/money.ts`, 34 unit tests |
+| A separate role, not implied by `HR_ADMIN` | `COMPENSATION_ADMIN` in `src/server/authz/policy.ts`, pinned by tests |
+| Append-only pay history | `CompensationRecord`; a correction is a new row |
+| Recommendation always editable, override recorded with a reason | `recommendIncrease` populates, a person decides, the override is refused without a rationale |
+| Budget pools with a ceiling | Enforced at submission, reported before it |
+| Planning state separate from approved state | `DRAFT → PLANNING → IN_APPROVAL → APPROVED → APPLIED`, and approving is not applying |
 
-1. **A different confidentiality class.** Salary is more sensitive than a review
-   and has a different audience — finance and senior leadership, often
-   explicitly *not* the direct manager who writes the review. The permission
-   model here is built around the reporting line; compensation needs a second,
-   orthogonal access model that does not inherit from it. Bolting salary onto
-   `canViewEmployeePerformanceRecord` would hand every manager their reports'
-   pay, which is wrong in most organizations and unlawful disclosure in some.
+Two things the deferral listed are still not built, and are listed below rather
+than quietly dropped:
 
-2. **It makes the score consequential in a new way.** The moment a rating feeds
-   a merit matrix, calibration stops being a quality conversation and becomes a
-   budget negotiation. That is a real organizational change, and shipping the
-   mechanism before anyone has decided the policy would be the application
-   making the decision.
+- **Printable statements.** No compensation statement for an employee to keep.
+  The data is there; the document is not.
+- **A defined export.** There is no compensation CSV export. The deferral said
+  the audience should be defined before it is built, and it has not been.
+  Nothing exports salary today, which is the safe default.
 
-3. **It needs money handling.** Currency, rounding, proration for mid-year
-   starters, effective dates, multi-currency if there is more than one entity.
-   Floating point is not acceptable; this needs integer minor units throughout,
-   which is a schema decision rather than a feature.
+Also not built, and worth stating:
 
-4. **Audit requirements are stricter.** A compensation change is often legally
-   discoverable. The existing audit log is append-only and would serve, but
-   retention, export and legal-hold requirements would need to be stated rather
-   than assumed.
-
-Half-built compensation planning is worse than none: a screen showing salaries
-to the wrong audience is a serious incident, and a merit recommendation nobody
-can explain is worse than no recommendation.
-
-### What it would need
-
-- A `CompensationRecord` model with integer minor units, currency, effective
-  date, and an append-only change history.
-- A **separate** role (`COMPENSATION_ADMIN`) and a separate policy section that
-  does not inherit from the reporting line. Explicitly not implied by
-  `HR_ADMIN`.
-- A merit matrix mapping performance bands and position-in-range to a
-  recommended increase, with the recommendation always editable and the override
-  recorded with a reason — the same pattern calibration already uses.
-- Budget pools with a hard ceiling, and a planning state separate from an
-  approved state.
-- Printable statements, and an export whose audience is defined before it is
-  built.
-
-The calibration module is the honest precedent: adjustments recorded with a
-reason, an author and a timestamp, and the computed figure kept beside the
-decided one. Compensation should follow it exactly.
+- **Proration for mid-year starters.** An increase is applied to the current
+  base in full. Somebody who started in October gets the same percentage as
+  somebody who started in January. If that is wrong for this company it is a
+  policy decision to make before the first real cycle, not a bug.
+- **Multi-currency.** The schema carries a currency per record and per cycle,
+  and the arithmetic is currency-agnostic, but nothing converts between
+  currencies and no screen mixes them. One currency per cycle.
+- **Variable pay.** Bonus, commission and overtime are out of scope. This
+  handles annual base salary only, which for a construction company leaves the
+  Sales Manager's commission outside the application entirely.
 
 ## Advanced talent views
 

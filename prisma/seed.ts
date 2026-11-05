@@ -10,12 +10,15 @@ import {
   JOB_TITLES,
   ORG_SLUG,
   RATING_SCALES,
+  PAY_POSITIONS,
   RECOGNITION_VALUES,
+  SALARY_BANDS,
   seedOrganization,
 } from './seed/catalog';
 import { MANAGER_HISTORY, PEOPLE, type SeedPerson } from './seed/people';
 import { STARTER_TEMPLATES } from './seed/templates';
 import { Rng, type Profile } from './seed/rng';
+import { increaseFromBasisPoints, newBaseFrom, recommendIncrease } from '../src/lib/money';
 import {
   fillAssignment,
   finalizeParticipantScore,
@@ -1182,6 +1185,8 @@ async function main(): Promise<void> {
 
   let participantTotal = 0;
   let assignmentTotal = 0;
+  /** Review cycle ids by name, so a compensation cycle can be linked to one. */
+  const reviewCycleIds = new Map<string, string>();
 
   for (const spec of CYCLES) {
     const defaultTemplate = spec.templateName ?? 'Annual Performance Review — Field Crew';
@@ -1459,6 +1464,7 @@ async function main(): Promise<void> {
       await db.cycleParticipant.update({ where: { id: participant.id }, data: releaseData });
     }
 
+    reviewCycleIds.set(spec.name, cycle.id);
     log(`cycle: ${spec.name} — ${spec.subjects.length} participants, status ${spec.status}`);
   }
   log(`review participants: ${participantTotal}, assignments: ${assignmentTotal}`);
@@ -1468,6 +1474,7 @@ async function main(): Promise<void> {
   await seedSurveys();
   await seedDevelopmentPlans();
   await seedCalibration();
+  await seedCompensation();
   await seedNotifications();
   await seedAudit();
 
@@ -2498,6 +2505,332 @@ async function main(): Promise<void> {
     );
   }
 
+
+  // ========================================================================
+  // Compensation
+  // ========================================================================
+
+  /**
+   * Salary bands, pay history and one live merit cycle.
+   *
+   * Every salary here is invented for a fictional company. Nothing in this
+   * block is anybody's actual pay.
+   *
+   * The cycle is left mid-flight on purpose: most decisions taken, two
+   * managers submitted, one person with no released review and so no
+   * recommendation, and one override. That is the state in which the access
+   * rules are actually interesting — a manager must see their own line and
+   * nobody else's, and the compensation administrator must see all of it while
+   * HR sees none of it.
+   */
+  async function seedCompensation(): Promise<void> {
+    // -- Bands --------------------------------------------------------------
+    let bandCount = 0;
+    for (const b of SALARY_BANDS) {
+      const jobTitleId = titleIds.get(b.jobTitle);
+      if (!jobTitleId) continue;
+      await db.salaryBand.create({
+        data: {
+          orgId,
+          jobTitleId,
+          currency: 'USD',
+          minMinor: b.min * 100,
+          midMinor: b.mid === undefined ? null : b.mid * 100,
+          maxMinor: b.max * 100,
+          effectiveFrom: date('2026-01-01'),
+        },
+      });
+      bandCount += 1;
+    }
+    log(`salary bands: ${bandCount} of ${JOB_TITLES.length} job titles (2 left unbanded)`);
+
+    // -- Current pay, derived from the band so the two stay consistent ------
+    const bandByTitle = new Map(SALARY_BANDS.map((b) => [b.jobTitle, b]));
+
+    /** Rounded to the nearest $100 so the figures read like real salaries. */
+    function salaryFor(person: SeedPerson): number | null {
+      const band = bandByTitle.get(person.jobTitle);
+      if (!band) return null;
+      const position = PAY_POSITIONS[person.key] ?? 0.45;
+      const raw = band.min + (band.max - band.min) * position;
+      return Math.round(raw / 100) * 100;
+    }
+
+    let recordCount = 0;
+    let unpaidCount = 0;
+
+    for (const person of PEOPLE) {
+      const current = salaryFor(person);
+      if (current === null) {
+        // Nobody in an unbanded title gets a salary here, which is what makes
+        // the "no salary on record" path reachable on a real screen.
+        unpaidCount += 1;
+        continue;
+      }
+
+      const hire = date(person.hireDate);
+      const rng = new Rng(`pay-${person.key}`);
+
+      /**
+       * Walk backwards from today's salary, undoing one increase a year, so
+       * the history is internally consistent: each row is the salary that was
+       * in force from its effective date, and the last row is the hire.
+       */
+      const rows: { effective: Date; baseMinor: number; type: string; note: string | null }[] = [];
+      let runningMinor = current * 100;
+      let year = 2026;
+
+      while (year > hire.getUTCFullYear() && rows.length < 8) {
+        rows.push({
+          effective: date(`${year}-03-01`),
+          baseMinor: runningMinor,
+          type: 'MERIT',
+          note: `${year} merit increase.`,
+        });
+        // Undo an increase of between 2.5% and 4.5% to get the prior salary.
+        const bp = 250 + rng.int(0, 200);
+        const prior = Math.round(runningMinor / (1 + bp / 10_000));
+        runningMinor = Math.round(prior / 10_000) * 10_000; // nearest $100
+        year -= 1;
+      }
+
+      rows.push({
+        effective: hire,
+        baseMinor: runningMinor,
+        type: 'HIRE',
+        note: 'Starting salary on hire.',
+      });
+
+      for (const r of rows) {
+        await db.compensationRecord.create({
+          data: {
+            orgId,
+            employeeId: employeeIds.get(person.key) as string,
+            baseMinor: r.baseMinor,
+            currency: 'USD',
+            effectiveDate: r.effective,
+            changeType: r.type,
+            note: r.note,
+            isDemoData: true,
+          },
+        });
+        recordCount += 1;
+      }
+    }
+
+    // One correction, so the append-only story has a worked example on screen
+    // rather than only a paragraph claiming it.
+    const gloriaId = employeeIds.get('gloria');
+    if (gloriaId) {
+      const latest = await db.compensationRecord.findFirst({
+        where: { employeeId: gloriaId },
+        orderBy: { effectiveDate: 'desc' },
+      });
+      if (latest) {
+        await db.compensationRecord.create({
+          data: {
+            orgId,
+            employeeId: gloriaId,
+            baseMinor: latest.baseMinor + 120_000,
+            currency: 'USD',
+            effectiveDate: date('2026-04-01'),
+            changeType: 'CORRECTION',
+            note:
+              'Correction. The March increase was entered at the wrong figure; this row records the ' +
+              'salary that was actually agreed. The original row is left as it was.',
+            isDemoData: true,
+          },
+        });
+        recordCount += 1;
+      }
+    }
+
+    log(
+      `pay records: ${recordCount} across ${PEOPLE.length - unpaidCount} people ` +
+        `(${unpaidCount} left with no salary on record, 1 correction)`,
+    );
+
+    // -- A live merit cycle -------------------------------------------------
+    const reviewCycleId = reviewCycleIds.get('2025 Annual Performance Review') ?? null;
+
+    const cycle = await db.compensationCycle.create({
+      data: {
+        orgId,
+        name: '2027 Merit Increase',
+        currency: 'USD',
+        status: 'PLANNING',
+        effectiveDate: date('2027-01-01'),
+        dueAt: date('2026-12-05'),
+        reviewCycleId,
+        totalPoolMinor: 9_500_000, // $95,000
+        notes:
+          'Pool is 3.2% of field and office payroll. Aim for the suggested figure unless you can say ' +
+          'in a sentence why not — and if you can, say it, that is what the reason box is for.',
+        createdById: employeeIds.get('gloria') ?? null,
+        launchedAt: daysFrom(TODAY, -6),
+        isDemoData: true,
+      },
+    });
+
+    // Released 2025 scores, which is what a recommendation may rest on.
+    const released = reviewCycleId
+      ? await db.cycleParticipant.findMany({
+          where: { cycleId: reviewCycleId, releasedAt: { not: null } },
+          select: { employeeId: true, finalScore: true, calibratedScore: true },
+        })
+      : [];
+    const scoreByEmployee = new Map<string, number>();
+    for (const r of released) {
+      const score = r.calibratedScore ?? r.finalScore;
+      if (score !== null) scoreByEmployee.set(r.employeeId, score);
+    }
+
+    const participantPlans: Record<string, 'decided' | 'submitted' | 'approved' | 'pending' | 'override'> = {
+      rosa: 'submitted',
+      jamal: 'override',
+      nina: 'submitted',
+      tyler: 'decided',
+      elena: 'decided',
+      yuki: 'approved',
+      oleg: 'pending',
+      casey: 'pending',
+    };
+
+    let participantCount = 0;
+    let decidedCount = 0;
+
+    for (const person of PEOPLE) {
+      if (person.employmentStatus === 'terminated') continue;
+      const employeeId = employeeIds.get(person.key);
+      if (!employeeId) continue;
+
+      const currentPay = await db.compensationRecord.findFirst({
+        where: { employeeId },
+        orderBy: { effectiveDate: 'desc' },
+        select: { baseMinor: true, currency: true },
+      });
+      // No salary on record means nothing to base an increase on, so the
+      // person is not in the cycle at all. The create path says the same.
+      if (!currentPay) continue;
+
+      const band = bandByTitle.get(person.jobTitle);
+      const score = scoreByEmployee.get(employeeId) ?? null;
+      const rec = recommendIncrease({
+        score,
+        baseMinor: currentPay.baseMinor,
+        rangeMinMinor: band ? band.min * 100 : null,
+        rangeMaxMinor: band ? band.max * 100 : null,
+        rangeMidMinor: band?.mid === undefined ? null : band.mid * 100,
+      });
+
+      const plan = participantPlans[person.key] ?? 'pending';
+      const managerKey = person.managerKey;
+
+      let decidedBp: number | null = null;
+      let rationale: string | null = null;
+      let status = 'PENDING';
+
+      if (plan !== 'pending' && rec.bp !== null) {
+        if (plan === 'override') {
+          // Deliberately above the suggestion, with the reason the override
+          // field exists to capture.
+          decidedBp = rec.bp + 200;
+          rationale =
+            'Above the suggested figure on purpose. Jamal moved onto finish work in July and is now ' +
+            'doing the job a grade up from the one he was hired into, while still sitting near the ' +
+            'bottom of the band. This closes part of that gap; the rest should come with a title change.';
+        } else {
+          decidedBp = rec.bp;
+        }
+        status =
+          plan === 'approved'
+            ? 'APPROVED'
+            : plan === 'submitted' || plan === 'override'
+              ? 'SUBMITTED'
+              : 'DECIDED';
+        decidedCount += 1;
+      }
+
+      const decidedAmountMinor = increaseFromBasisPoints(currentPay.baseMinor, decidedBp);
+
+      await db.compensationParticipant.create({
+        data: {
+          cycleId: cycle.id,
+          employeeId,
+          managerIdSnapshot: managerKey ? (employeeIds.get(managerKey) ?? null) : null,
+          managerNameSnapshot: managerKey
+            ? (() => {
+                const m = PEOPLE.find((x) => x.key === managerKey);
+                return m ? `${m.firstName} ${m.lastName}` : null;
+              })()
+            : null,
+          jobTitleNameSnapshot: person.jobTitle,
+          departmentNameSnapshot: person.department,
+          currentBaseMinor: currentPay.baseMinor,
+          currency: currentPay.currency,
+          bandMinMinor: band ? band.min * 100 : null,
+          bandMidMinor: band?.mid === undefined ? null : band.mid * 100,
+          bandMaxMinor: band ? band.max * 100 : null,
+          performanceScore: score,
+          performanceBand: rec.band,
+          recommendedBp: rec.bp,
+          decidedBp,
+          decidedAmountMinor,
+          newBaseMinor: newBaseFrom(currentPay.baseMinor, decidedAmountMinor),
+          rationale,
+          status,
+          decidedByEmployeeId:
+            decidedBp !== null && managerKey ? (employeeIds.get(managerKey) ?? null) : null,
+          decidedAt: decidedBp !== null ? daysFrom(TODAY, -3) : null,
+          submittedAt: ['SUBMITTED', 'APPROVED'].includes(status) ? daysFrom(TODAY, -2) : null,
+          approvedByUserId: status === 'APPROVED' ? (userIds.get('gloria') ?? null) : null,
+          approvedAt: status === 'APPROVED' ? daysFrom(TODAY, -1) : null,
+          approvalNote:
+            status === 'APPROVED'
+              ? 'Checked against the band and the released score. Approved. Not yet applied to pay.'
+              : null,
+        },
+      });
+      participantCount += 1;
+    }
+
+    // -- Manager budgets ----------------------------------------------------
+    // Each manager with people in the cycle gets a share of the pool,
+    // weighted by the payroll they are allocating over, so the sum of the
+    // budgets equals the pool exactly rather than approximately.
+    const byManager = await db.compensationParticipant.groupBy({
+      by: ['managerIdSnapshot'],
+      where: { cycleId: cycle.id, managerIdSnapshot: { not: null } },
+      _sum: { currentBaseMinor: true },
+    });
+    const totalPayroll = byManager.reduce((sum, g) => sum + (g._sum.currentBaseMinor ?? 0), 0);
+
+    let allocated = 0;
+    for (const [i, g] of byManager.entries()) {
+      const share = totalPayroll > 0 ? (g._sum.currentBaseMinor ?? 0) / totalPayroll : 0;
+      // The last manager takes the remainder, so rounding never loses or
+      // invents a cent against the pool.
+      const poolMinor =
+        i === byManager.length - 1
+          ? cycle.totalPoolMinor - allocated
+          : Math.round(cycle.totalPoolMinor * share);
+      allocated += poolMinor;
+      await db.compensationBudget.create({
+        data: {
+          cycleId: cycle.id,
+          ownerEmployeeId: g.managerIdSnapshot as string,
+          poolMinor,
+          note: 'Weighted by the payroll in this manager’s scope.',
+        },
+      });
+    }
+
+    log(
+      `compensation cycle: ${cycle.name} — ${participantCount} participants, ` +
+        `${decidedCount} decided, ${byManager.length} manager budgets totalling ` +
+        `${allocated / 100} of a ${cycle.totalPoolMinor / 100} pool`,
+    );
+  }
   // ========================================================================
   // Calibration
   // ========================================================================
@@ -2797,7 +3130,8 @@ async function main(): Promise<void> {
   console.log(`  Sign-in password for every demo account:  ${DEMO_PASSWORD}`);
   console.log('  (set SEED_PASSWORD before seeding to change it)\n');
   console.log('  Suggested accounts:');
-  console.log('    priya.raghunathan@dreambuilder.example   HR / program administrator');
+  console.log('    priya.raghunathan@dreambuilder.example   HR / program administrator (no salary access)');
+  console.log('    gloria.mbeki@dreambuilder.example        Compensation administrator (no review access)');
   console.log('    terrence.okafor@dreambuilder.example     System administrator');
   console.log('    rosa.delgado@dreambuilder.example        Manager (5 direct reports)');
   console.log('    marcus.villanueva@dreambuilder.example   Leadership + approver');
