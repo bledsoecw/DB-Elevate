@@ -602,7 +602,7 @@ function endOfDay(value: string): Date {
 
 export async function listOutbox(
   actor: Actor,
-  status?: 'QUEUED' | 'SENT' | 'FAILED' | 'SUPPRESSED',
+  status?: 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED' | 'SUPPRESSED',
 ) {
   if (!canAdministerApp(actor)) {
     throw new ForbiddenError('Only a system administrator can read the outbox.');

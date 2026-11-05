@@ -25,7 +25,13 @@ export interface NotifyInput {
   email?: { subject: string; text: string } | false;
 }
 
-export async function notify(input: NotifyInput, db: Db = prisma): Promise<void> {
+/**
+ * Returns true when a notification was actually written, false when the dedupe
+ * key meant there was nothing to do. Callers that report counts need the
+ * difference: a sweep that attempted 37 reminders and created none has not
+ * reminded 37 people, and saying so would be a lie told by a counter.
+ */
+export async function notify(input: NotifyInput, db: Db = prisma): Promise<boolean> {
   const dedupeKey = input.dedupeKey ?? null;
 
   try {
@@ -34,7 +40,7 @@ export async function notify(input: NotifyInput, db: Db = prisma): Promise<void>
         where: { recipientEmployeeId: input.recipientEmployeeId, dedupeKey },
         select: { id: true },
       });
-      if (existing) return;
+      if (existing) return false;
     }
 
     await db.notification.create({
@@ -56,7 +62,7 @@ export async function notify(input: NotifyInput, db: Db = prisma): Promise<void>
     if (!message.includes('Unique constraint')) {
       console.error('[notify] failed', input.type, input.recipientEmployeeId, message);
     }
-    return;
+    return false;
   }
 
   if (input.email) {
@@ -73,12 +79,17 @@ export async function notify(input: NotifyInput, db: Db = prisma): Promise<void>
       db,
     );
   }
+
+  return true;
 }
 
-export async function notifyMany(inputs: NotifyInput[], db: Db = prisma): Promise<void> {
+/** Returns how many notifications were actually created, not how many were tried. */
+export async function notifyMany(inputs: NotifyInput[], db: Db = prisma): Promise<number> {
+  let created = 0;
   for (const input of inputs) {
-    await notify(input, db);
+    if (await notify(input, db)) created += 1;
   }
+  return created;
 }
 
 export interface QueueEmailInput {
@@ -120,6 +131,18 @@ export async function queueEmail(input: QueueEmailInput, db: Db = prisma): Promi
     where: { id: input.orgId },
     select: { emailProvider: true },
   });
+
+  // Check the idempotency key before inserting rather than catching the unique
+  // violation. Both are correct, but Prisma's own error logger prints the
+  // constraint failure before application code can swallow it, which fills a
+  // cron log with alarming noise about something working as intended.
+  if (input.dedupeKey) {
+    const existing = await db.emailMessage.findFirst({
+      where: { dedupeKey: input.dedupeKey },
+      select: { id: true },
+    });
+    if (existing) return;
+  }
 
   try {
     await db.emailMessage.create({

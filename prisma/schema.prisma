@@ -1513,7 +1513,9 @@ model EmailMessage {
   textBody String
   htmlBody String?
 
-  /// QUEUED | SENT | FAILED | SUPPRESSED
+  /// QUEUED | SENDING | SENT | FAILED | SUPPRESSED
+  /// SENDING is the transient claim the job runner takes so two runners cannot
+  /// deliver the same message; a row left in it means a runner died mid-send.
   status   String  @default("QUEUED")
   provider String  @default("outbox")
   error    String?

@@ -8,7 +8,22 @@ import { NextResponse, type NextRequest } from 'next/server';
  * database. Every page and API route independently resolves the session and
  * authorizes the actor server-side; see src/server/authz.
  */
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/health', '/favicon.ico'];
+/**
+ * Paths that must bypass the cookie check.
+ *
+ * `/api/jobs/run` is here because it is machine-to-machine: a scheduler has no
+ * session cookie to send. It is not unprotected — the route itself requires a
+ * bearer token compared in constant time, and returns 404 unless JOBS_TOKEN is
+ * configured. Letting it past this gate only means the route gets to apply its
+ * own, stricter check instead of being refused with a misleading 401.
+ */
+const PUBLIC_PATHS = [
+  '/login',
+  '/api/auth/login',
+  '/api/health',
+  '/api/jobs/run',
+  '/favicon.ico',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

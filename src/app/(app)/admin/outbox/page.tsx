@@ -20,7 +20,7 @@ import { countLabel, formatDateTime } from '@/lib/utils';
 
 export const metadata = { title: 'E-mail outbox' };
 
-const STATUSES = ['QUEUED', 'SENT', 'FAILED', 'SUPPRESSED'] as const;
+const STATUSES = ['QUEUED', 'SENDING', 'SENT', 'FAILED', 'SUPPRESSED'] as const;
 type OutboxStatus = (typeof STATUSES)[number];
 
 export default async function OutboxPage({
@@ -105,6 +105,14 @@ export default async function OutboxPage({
           tone={(counts.FAILED ?? 0) > 0 ? 'danger' : 'neutral'}
         />
         <StatTile label="Suppressed" value={counts.SUPPRESSED ?? 0} hint="Discarded, or no address." />
+        {(counts.SENDING ?? 0) > 0 && (
+          <StatTile
+            label="Stuck sending"
+            value={counts.SENDING ?? 0}
+            tone="danger"
+            hint="A job runner claimed these and did not finish. Investigate before re-queueing."
+          />
+        )}
       </Grid>
 
       <LinkTabs tabs={tabs} current={filter ?? 'all'} className="mb-5" />
