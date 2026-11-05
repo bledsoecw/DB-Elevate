@@ -52,7 +52,7 @@ function check(name, ok, detail) {
     await page.waitForSelector('[data-hydrated="true"]');
   }
 
-  await signIn('rosa.delgado@dreambuilder.example');
+  await signIn('rosa.delgado@deitemeyerbrothers.example');
 
   // --- Create a development plan for a direct report -----------------------
   await page.goto(BASE + '/development/new');
@@ -196,7 +196,7 @@ function check(name, ok, detail) {
 
   // --- Someone up the chain but NOT the direct manager --------------------
   // Marcus is leadership and above Rosa, so he is in the wider chain.
-  await signIn('marcus.villanueva@dreambuilder.example');
+  await signIn('marcus.villanueva@deitemeyerbrothers.example');
   const upstream = await page.evaluate(async (args) => {
     const out = {};
     for (const [key, id] of Object.entries(args)) {
@@ -231,7 +231,7 @@ function check(name, ok, detail) {
   check('Improvement plan does not appear in the upper chain’s list', !pipInList);
 
   // --- An unrelated employee sees nothing ---------------------------------
-  await signIn('yuki.tanabe@dreambuilder.example');
+  await signIn('yuki.tanabe@deitemeyerbrothers.example');
   const stranger = await page.evaluate(async (args) => {
     const out = {};
     for (const [key, id] of Object.entries(args)) {
@@ -247,7 +247,7 @@ function check(name, ok, detail) {
     [404, 403].includes(stranger.pip) && [404, 403].includes(stranger.dev), JSON.stringify(stranger));
 
   // A system administrator runs the application and gets neither plan.
-  await signIn('terrence.okafor@dreambuilder.example');
+  await signIn('terrence.okafor@deitemeyerbrothers.example');
   const sysAdminPlans = await page.evaluate(async (args) => {
     const out = {};
     for (const [key, id] of Object.entries(args)) {
@@ -272,7 +272,7 @@ function check(name, ok, detail) {
     strangerList.join(', ') || 'none');
 
   // --- HR sees both -------------------------------------------------------
-  await signIn('priya.raghunathan@dreambuilder.example');
+  await signIn('priya.raghunathan@deitemeyerbrothers.example');
   const hrSees = await page.evaluate(async (titles) => {
     const res = await fetch('/development?scope=all', { credentials: 'same-origin' });
     const html = await res.text();
@@ -281,7 +281,7 @@ function check(name, ok, detail) {
   check('HR can see both plans', hrSees.length === 2, hrSees.join(', '));
 
   // --- /account: password change requires the current one ------------------
-  await signIn('yuki.tanabe@dreambuilder.example');
+  await signIn('yuki.tanabe@deitemeyerbrothers.example');
   await page.goto(BASE + '/account');
   await page.waitForSelector('[data-hydrated="true"]');
   const wrongCurrent = await page.evaluate(async () => {

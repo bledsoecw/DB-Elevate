@@ -79,23 +79,33 @@ export function SettingsForm({
     setSaving(true);
     setError(null);
     setFieldErrors({});
+    // Built once and reused below. The server stores a blank optional field as
+    // null and trims the rest, so this is what the saved settings actually
+    // become — and the form has to be told that, not just the server.
+    const payload = {
+      name: form.name.trim(),
+      productName: form.productName.trim(),
+      wordmarkText: form.wordmarkText?.trim() || null,
+      logoUrl: form.logoUrl?.trim() || null,
+      brandPrimaryHex: form.brandPrimaryHex,
+      brandAccentHex: form.brandAccentHex,
+      timezone: form.timezone,
+      surveyMinResponses: form.surveyMinResponses,
+      surveySuppressComplement: form.surveySuppressComplement,
+      peerReviewMinForAggregate: form.peerReviewMinForAggregate,
+      requireReviewAcknowledgement: form.requireReviewAcknowledgement,
+      emailProvider: form.emailProvider as 'outbox' | 'smtp' | 'ses' | 'sendgrid',
+      emailFromName: form.emailFromName.trim(),
+      emailFromAddr: form.emailFromAddr.trim(),
+    };
+
     try {
-      await api.patch('/api/admin/settings', {
-        name: form.name.trim(),
-        productName: form.productName.trim(),
-        wordmarkText: form.wordmarkText?.trim() || null,
-        logoUrl: form.logoUrl?.trim() || null,
-        brandPrimaryHex: form.brandPrimaryHex,
-        brandAccentHex: form.brandAccentHex,
-        timezone: form.timezone,
-        surveyMinResponses: form.surveyMinResponses,
-        surveySuppressComplement: form.surveySuppressComplement,
-        peerReviewMinForAggregate: form.peerReviewMinForAggregate,
-        requireReviewAcknowledgement: form.requireReviewAcknowledgement,
-        emailProvider: form.emailProvider as 'outbox' | 'smtp' | 'ses' | 'sendgrid',
-        emailFromName: form.emailFromName.trim(),
-        emailFromAddr: form.emailFromAddr.trim(),
-      });
+      await api.patch('/api/admin/settings', payload);
+      // Adopt the normalized values as the new baseline. Without this, clearing
+      // an optional field leaves '' in the form against null on the server, and
+      // the form reports unsaved changes forever on a field that saved
+      // perfectly — which reads as "the save did not work".
+      setForm((f) => ({ ...f, ...payload }));
       toast.success('Settings saved.');
       router.refresh();
     } catch (e) {
@@ -140,7 +150,7 @@ export function SettingsForm({
             required={false}
             value={form.wordmarkText ?? ''}
             onChange={(e) => set('wordmarkText', e.target.value)}
-            help="Overrides the product name in the sidebar. Leave blank to use the product name."
+            help="Used in the sidebar when no logo is set, and beside the logo on the sign-in page. Leave blank to use the product name."
           />
           <Select
             label="Time zone"

@@ -30,7 +30,7 @@ function check(name, ok, detail) {
     await page.waitForSelector('[data-hydrated="true"]');
   }
 
-  await signIn('priya.raghunathan@dreambuilder.example');
+  await signIn('priya.raghunathan@deitemeyerbrothers.example');
 
   // --- Competency: create with a behaviour ladder --------------------------
   await page.goto(BASE + '/admin/competencies');
@@ -186,7 +186,7 @@ function check(name, ok, detail) {
   check('Competency library created with a selected competency', true);
 
   // --- Permission: a plain employee cannot reach any of it ----------------
-  await signIn('tyler.nakamura@dreambuilder.example');
+  await signIn('tyler.nakamura@deitemeyerbrothers.example');
   for (const path of ['/admin/competencies', '/admin/scales', '/admin/recognition']) {
     await page.goto(BASE + path);
     await page.waitForSelector('[data-hydrated="true"]');

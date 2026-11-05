@@ -8,6 +8,7 @@ import {
   COMPETENCY_LIBRARIES,
   DEPARTMENTS,
   JOB_TITLES,
+  LEGACY_ORG_SLUGS,
   ORG_SLUG,
   RATING_SCALES,
   PAY_POSITIONS,
@@ -564,6 +565,19 @@ async function main(): Promise<void> {
 
   console.log('\nDB Elevate — seeding demonstration data');
   console.log('='.repeat(60));
+
+  // An installation seeded before the organization was renamed carries the
+  // old slug. Clean those up on a force re-seed rather than leaving two
+  // organizations behind, which would make the sign-in accounts ambiguous.
+  if (process.env.SEED_FORCE === '1') {
+    for (const slug of LEGACY_ORG_SLUGS) {
+      const legacy = await db.organization.findUnique({ where: { slug } });
+      if (legacy) {
+        log(`SEED_FORCE=1 — removing the previously seeded organization "${legacy.name}"`);
+        await db.organization.delete({ where: { id: legacy.id } });
+      }
+    }
+  }
 
   const existing = await db.organization.findUnique({ where: { slug: ORG_SLUG } });
   if (existing) {
@@ -3130,12 +3144,12 @@ async function main(): Promise<void> {
   console.log(`  Sign-in password for every demo account:  ${DEMO_PASSWORD}`);
   console.log('  (set SEED_PASSWORD before seeding to change it)\n');
   console.log('  Suggested accounts:');
-  console.log('    priya.raghunathan@dreambuilder.example   HR / program administrator (no salary access)');
-  console.log('    gloria.mbeki@dreambuilder.example        Compensation administrator (no review access)');
-  console.log('    terrence.okafor@dreambuilder.example     System administrator');
-  console.log('    rosa.delgado@dreambuilder.example        Manager (5 direct reports)');
-  console.log('    marcus.villanueva@dreambuilder.example   Leadership + approver');
-  console.log('    yuki.tanabe@dreambuilder.example         Employee, no reports');
+  console.log('    priya.raghunathan@deitemeyerbrothers.example   HR / program administrator (no salary access)');
+  console.log('    gloria.mbeki@deitemeyerbrothers.example        Compensation administrator (no review access)');
+  console.log('    terrence.okafor@deitemeyerbrothers.example     System administrator');
+  console.log('    rosa.delgado@deitemeyerbrothers.example        Manager (5 direct reports)');
+  console.log('    marcus.villanueva@deitemeyerbrothers.example   Leadership + approver');
+  console.log('    yuki.tanabe@deitemeyerbrothers.example         Employee, no reports');
   console.log('\n  Start the application with:  npm run dev');
   console.log('  Then open:                   http://localhost:3000\n');
 }

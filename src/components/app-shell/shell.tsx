@@ -265,10 +265,18 @@ export function AppShell({
 
   const sidebarInner = (
     <>
-      <div className="flex h-16 flex-shrink-0 items-center gap-2.5 border-b border-slate-200 px-5">
+      <div className="flex h-16 flex-shrink-0 items-center gap-2.5 border-b border-slate-200 px-4">
         {branding.logoUrl ? (
+          // Sized to the slot rather than to a fixed height: a wordmark is
+          // usually wide and short, and capping only the height squeezes it
+          // into a strip too small to read. Capping both lets a tall logo and
+          // a wide one each use the space they need.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={branding.logoUrl} alt={branding.orgName} className="h-8 w-auto max-w-[170px] object-contain" />
+          <img
+            src={branding.logoUrl}
+            alt={branding.orgName}
+            className="max-h-11 w-auto max-w-[200px] object-contain"
+          />
         ) : (
           <>
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-brand-700 text-white">

@@ -32,11 +32,41 @@ function check(name, ok, detail) {
   // =======================================================================
   // System administrator
   // =======================================================================
-  await signIn('terrence.okafor@dreambuilder.example');
+  await signIn('terrence.okafor@deitemeyerbrothers.example');
 
   // --- Org settings save round-trips --------------------------------------
   await page.goto(BASE + '/admin/system');
   await page.waitForSelector('[data-hydrated="true"]');
+
+  /**
+   * Fill settings fields and save, waiting for the form to actually register
+   * the change.
+   *
+   * After a reload, `data-hydrated` can be set before React has attached its
+   * handlers to this form. A fill that lands in that gap changes the DOM value
+   * but not the component state, so the form never becomes dirty and Save
+   * stays disabled — which shows up as a click that hangs rather than as a
+   * useful failure. Re-filling until Save enables closes that window.
+   */
+  async function saveSettings(fields) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      for (const [labelRe, value] of fields) {
+        await page.getByLabel(labelRe).first().fill(value);
+      }
+      try {
+        await page
+          .locator('button:has-text("Save settings"):not([disabled])')
+          .waitFor({ state: 'visible', timeout: 3000 });
+        await page.click('button:has-text("Save settings")');
+        await page.waitForSelector('text=All changes saved', { timeout: 20000 });
+        return;
+      } catch {
+        await page.waitForTimeout(500);
+      }
+    }
+    throw new Error('Save settings never became enabled after filling the fields.');
+  }
+
   const saveDisabledInitially = await page.locator('button:has-text("Save settings")').isDisabled();
   check('Save is disabled until something changes', saveDisabledInitially);
 
@@ -49,8 +79,7 @@ function check(name, ok, detail) {
   const dirtyShown = await page.locator('text=Unsaved changes').count();
   check('Edit enables save and shows an unsaved-changes marker', saveEnabled && dirtyShown > 0);
 
-  await page.click('button:has-text("Save settings")');
-  await page.waitForSelector('text=All changes saved', { timeout: 20000 });
+  await saveSettings([[/^Product name\b/, 'DB Elevate Pilot']]);
   await page.reload();
   await page.waitForSelector('[data-hydrated="true"]');
   const persisted = await page.getByLabel(/^Product name\b/).first().inputValue();
@@ -61,20 +90,45 @@ function check(name, ok, detail) {
   // chrome is read from the database rather than from a constant.
   const wordmarkInput = page.getByLabel(/^Wordmark text\b/).first();
   const originalWordmark = await wordmarkInput.inputValue();
-  await wordmarkInput.fill('Pilot Mark');
-  await page.click('button:has-text("Save settings")');
-  await page.waitForSelector('text=All changes saved', { timeout: 20000 });
+  const logoInput = page.getByLabel(/^Logo URL\b/).first();
+  const originalLogo = await logoInput.inputValue();
+
+  // Drive BOTH chrome paths, because the sidebar shows the logo when one is
+  // set and falls back to the wordmark only when it is not. Changing just the
+  // wordmark proves nothing while a logo is configured — the earlier version
+  // of this check did exactly that and started failing the moment a logo was
+  // seeded, which is the test working as intended.
+  await saveSettings([
+    [/^Wordmark text\b/, 'Pilot Mark'],
+    [/^Logo URL\b/, ''],
+  ]);
   await page.reload();
   await page.waitForSelector('[data-hydrated="true"]');
   const brandText = await page.locator('aside').first().innerText().catch(() => '');
-  check('Branding chrome is read from the database, not a constant',
+  check('With no logo, the sidebar falls back to the wordmark from the database',
     brandText.includes('Pilot Mark'), brandText.split('\n')[0]);
 
+  // And with a logo set, the sidebar renders that instead.
+  await saveSettings([[/^Logo URL\b/, '/brand/deitemeyer-brothers.png']]);
+  await page.reload();
+  await page.waitForSelector('[data-hydrated="true"]');
+  const logoShown = await page
+    .locator('aside img[src="/brand/deitemeyer-brothers.png"]')
+    .first()
+    .isVisible()
+    .catch(() => false);
+  const wordmarkGone = !(await page.locator('aside').first().innerText().catch(() => '')).includes(
+    'Pilot Mark',
+  );
+  check('With a logo set, the sidebar renders the logo instead of the wordmark',
+    logoShown && wordmarkGone, logoShown ? 'logo visible' : 'logo missing');
+
   // Put both back exactly as they were.
-  await page.getByLabel(/^Product name\b/).first().fill(originalProduct);
-  await page.getByLabel(/^Wordmark text\b/).first().fill(originalWordmark);
-  await page.click('button:has-text("Save settings")');
-  await page.waitForSelector('text=All changes saved', { timeout: 20000 });
+  await saveSettings([
+    [/^Product name\b/, originalProduct],
+    [/^Wordmark text\b/, originalWordmark],
+    [/^Logo URL\b/, originalLogo],
+  ]);
   const restored = await page.getByLabel(/^Product name\b/).first().inputValue();
   check('Settings restored after the test', restored === originalProduct, restored);
 
@@ -183,7 +237,7 @@ function check(name, ok, detail) {
   // =======================================================================
   // Role separation: HR admin has no system access, and vice versa
   // =======================================================================
-  await signIn('priya.raghunathan@dreambuilder.example');
+  await signIn('priya.raghunathan@deitemeyerbrothers.example');
   for (const path of ['/admin/system', '/admin/accounts', '/admin/outbox', '/admin/ai', '/admin/demo-data']) {
     await page.goto(BASE + path);
     await page.waitForSelector('[data-hydrated="true"]');
@@ -225,7 +279,7 @@ function check(name, ok, detail) {
   check('HR admin blocked at every system API route', Object.values(hrApi).every((s) => s === 403),
     JSON.stringify(hrApi));
 
-  await signIn('terrence.okafor@dreambuilder.example');
+  await signIn('terrence.okafor@deitemeyerbrothers.example');
   const sysApi = await page.evaluate(async () => {
     const out = {};
     for (const p of ['/api/admin/competencies', '/api/admin/scales', '/api/admin/recognition']) {
@@ -242,7 +296,7 @@ function check(name, ok, detail) {
     `landed on ${new URL(page.url()).pathname}`);
 
   // Plain employee reaches nothing.
-  await signIn('tyler.nakamura@dreambuilder.example');
+  await signIn('tyler.nakamura@deitemeyerbrothers.example');
   const empApi = await page.evaluate(async () => {
     const out = {};
     for (const p of ['/api/admin/competencies', '/api/admin/scales']) {

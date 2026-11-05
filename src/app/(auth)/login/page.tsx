@@ -88,8 +88,14 @@ export default async function LoginPage({
       <div className="hidden bg-brand-800 lg:flex lg:w-[42%] lg:flex-col lg:justify-between lg:p-12">
         <div className="flex items-center gap-3">
           {branding.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logoUrl} alt="" className="h-9 w-auto" />
+            // A logo is an arbitrary image from the organization's settings and
+            // most contain dark ink, which disappears on this dark panel. The
+            // white card is what makes any uploaded logo legible here without
+            // asking for a second, reversed version of it.
+            <span className="inline-flex items-center rounded-lg bg-white px-3 py-2 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={branding.logoUrl} alt="" className="h-9 w-auto max-w-[210px] object-contain" />
+            </span>
           ) : (
             <span className="flex h-9 w-9 items-center justify-center rounded-md bg-accent-600 text-white">
               <HardHat aria-hidden className="h-5 w-5" />

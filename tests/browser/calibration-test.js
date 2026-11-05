@@ -29,7 +29,7 @@ function check(name, ok, detail) {
     await page.waitForSelector('[data-hydrated="true"]');
   }
 
-  await signIn('priya.raghunathan@dreambuilder.example');
+  await signIn('priya.raghunathan@deitemeyerbrothers.example');
   await page.goto(BASE + '/admin/calibration');
   await page.waitForSelector('[data-hydrated="true"]');
 
@@ -189,13 +189,13 @@ function check(name, ok, detail) {
     `HTTP ${apiAfterFinal.status} ${apiAfterFinal.code ?? ''}`);
 
   // --- Permissions ---------------------------------------------------------
-  await signIn('terrence.okafor@dreambuilder.example');
+  await signIn('terrence.okafor@deitemeyerbrothers.example');
   await page.goto(BASE + '/admin/calibration');
   await page.waitForSelector('[data-hydrated="true"]');
   check('System admin cannot reach calibration', !page.url().includes('/admin/calibration'),
     `landed on ${new URL(page.url()).pathname}`);
 
-  await signIn('rosa.delgado@dreambuilder.example');
+  await signIn('rosa.delgado@deitemeyerbrothers.example');
   const mgrApi = await page.evaluate(async (args) => {
     const res = await fetch(`/api/admin/calibration/${args.id}/decide`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

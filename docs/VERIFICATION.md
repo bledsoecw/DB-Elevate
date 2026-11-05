@@ -17,7 +17,7 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 | `npm test` — unit | **177 / 177 passed** |
 | `npm run test:e2e` — browser workflow and permissions | **43 / 43 passed** |
 | Catalogue administration (browser) | **16 / 16 passed** |
-| System administration and role separation (browser) | **27 / 27 passed** |
+| System administration and role separation (browser) | **28 / 28 passed** |
 | Calibration (browser) | **23 / 23 passed** |
 | Development plans and account (browser) | **28 / 28 passed** |
 | AI gating and attachments (browser) | **26 / 26 passed** |
@@ -30,7 +30,7 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 | Layout, desktop 1440px and phone 390px | No horizontal overflow on 20 pages |
 | Console / server errors during browser runs | None |
 
-**441 automated checks**, all passing.
+**442 automated checks**, all passing.
 
 Two caveats about that number, both earned.
 
@@ -55,6 +55,15 @@ consequences:
   nothing. The authorization was in fact correct — re-run against the right
   account it returns 403 on all three writes — but the suite was not
   demonstrating that.
+
+A fifth was a product bug the suite surfaced while the logos were being wired
+in: the organization-settings form computed "unsaved changes" by comparing its
+state to the props it was first rendered with, and never adopted what the
+server actually stored. The server normalizes a blank optional field to null,
+so clearing the Logo URL left `''` in the form against `null` on the server and
+the page reported **unsaved changes forever on a field that had saved
+perfectly** — which reads as "the save did not work". The form now adopts the
+normalized payload as its new baseline.
 
 A fourth, in `tests/e2e/review-workflow.ts`, was found in the same pass: the
 step that released a review waited for `text=/Released/i`, which is on that
@@ -134,7 +143,7 @@ the save; an unused recognition value deletes while a used one deactivates; a
 plain employee gets **403** from `/api/admin/competencies`, `/scales` and
 `/recognition`.
 
-**System administration (27/27)** — settings round-trip and persist across a
+**System administration (28/28)** — settings round-trip and persist across a
 reload; branding is read from the database (changing the wordmark changes the
 sidebar); a real mail provider cannot be selected and the API returns **409**;
 a paid AI provider is refused with **409** without `AI_BILLING_APPROVED`; the
@@ -143,6 +152,12 @@ removal is refused (**409**) while signed in as a demo account and on a
 mistyped confirmation (**422**); the last system administrator cannot be
 demoted. **An HR administrator is refused at every system API route (403), and
 a system administrator is refused at every catalogue route (403).**
+
+Branding is checked down both paths it can take: with the logo cleared, the
+sidebar falls back to the wordmark from the database; with a logo set, it
+renders the logo and drops the wordmark. The earlier version drove only the
+wordmark, which proved nothing once a logo was seeded — it failed immediately,
+which is the test doing its job.
 
 **Calibration (23/23)** — a decision under ten characters is refused (**422**);
 finalising with outstanding decisions is refused (**409**); a finalised session

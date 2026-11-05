@@ -58,7 +58,7 @@ export async function runPermissionChecks({
       password: 'definitely-not-the-password',
     });
     const fake = await apiCall(page, 'POST', '/api/auth/login', {
-      email: 'nobody.here@dreambuilder.example',
+      email: 'nobody.here@deitemeyerbrothers.example',
       password: 'definitely-not-the-password',
     });
     await ctx.close();

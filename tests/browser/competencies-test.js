@@ -28,7 +28,7 @@ const check = (n, ok, d) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FA
     await page.waitForSelector('[data-hydrated="true"]');
   }
   // Find a person outside Yuki's line: Rosa's report Jamal.
-  await signIn('priya.raghunathan@dreambuilder.example');
+  await signIn('priya.raghunathan@deitemeyerbrothers.example');
   const jamal = await page.evaluate(async () => {
     const res = await fetch('/people?q=Freeman', { credentials: 'same-origin' });
     const html = await res.text();
@@ -37,7 +37,7 @@ const check = (n, ok, d) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FA
   });
   check('Found a subject outside the test user line', Boolean(jamal), jamal ?? 'none');
 
-  await signIn('yuki.tanabe@dreambuilder.example');
+  await signIn('yuki.tanabe@deitemeyerbrothers.example');
   await page.goto(`${BASE}/competencies?employee=${jamal}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(800);
   const body = await page.locator('body').innerText();
@@ -56,13 +56,13 @@ const check = (n, ok, d) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FA
   check('An employee can open their own profile', /Competencies/.test(own || ''), (own || '').trim());
 
   // Manager can see a direct report, HR can see anyone.
-  await signIn('rosa.delgado@dreambuilder.example');
+  await signIn('rosa.delgado@deitemeyerbrothers.example');
   await page.goto(`${BASE}/competencies?employee=${jamal}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(800);
   check('A manager can open a direct report’s profile',
     /Freeman/.test(await page.locator('body').innerText()));
 
-  await signIn('terrence.okafor@dreambuilder.example');
+  await signIn('terrence.okafor@deitemeyerbrothers.example');
   await page.goto(`${BASE}/competencies?employee=${jamal}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(800);
   check('A system administrator cannot open it (review content)',

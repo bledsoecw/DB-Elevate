@@ -32,7 +32,7 @@ function check(name, ok, detail) {
   // =====================================================================
   // AI: off by default, and it says why
   // =====================================================================
-  await signIn('priya.raghunathan@dreambuilder.example');
+  await signIn('priya.raghunathan@deitemeyerbrothers.example');
 
   const status = await page.evaluate(async () => {
     const res = await fetch('/api/ai/status', { credentials: 'same-origin' });
@@ -59,7 +59,7 @@ function check(name, ok, detail) {
   // =====================================================================
   // AI: mock provider works, costs nothing, is labelled
   // =====================================================================
-  await signIn('terrence.okafor@dreambuilder.example');
+  await signIn('terrence.okafor@deitemeyerbrothers.example');
   await page.evaluate(async () => {
     await fetch('/api/admin/ai', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -68,7 +68,7 @@ function check(name, ok, detail) {
     });
   });
 
-  await signIn('priya.raghunathan@dreambuilder.example');
+  await signIn('priya.raghunathan@deitemeyerbrothers.example');
   const onStatus = await page.evaluate(async () =>
     (await fetch('/api/ai/status', { credentials: 'same-origin' })).json());
   check('Mock provider reports enabled and local', onStatus.enabled === true && onStatus.local === true,
@@ -106,7 +106,7 @@ function check(name, ok, detail) {
   check('A human decision on the suggestion is recorded', decided === 200, `HTTP ${decided}`);
 
   // Somebody else cannot decide on a suggestion they did not request.
-  await signIn('rosa.delgado@dreambuilder.example');
+  await signIn('rosa.delgado@deitemeyerbrothers.example');
   const otherDecide = await page.evaluate(async (id) => {
     const res = await fetch(`/api/ai/suggestions/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -152,7 +152,7 @@ function check(name, ok, detail) {
   }
 
   // Turn AI back off.
-  await signIn('terrence.okafor@dreambuilder.example');
+  await signIn('terrence.okafor@deitemeyerbrothers.example');
   await page.evaluate(async () => {
     await fetch('/api/admin/ai', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -167,7 +167,7 @@ function check(name, ok, detail) {
   // =====================================================================
   // Attachments: private storage, inherited permissions
   // =====================================================================
-  await signIn('rosa.delgado@dreambuilder.example');
+  await signIn('rosa.delgado@deitemeyerbrothers.example');
 
   // Find one of Rosa's own open review assignments to attach to.
   const assignmentId = await page.evaluate(async () => {
@@ -219,7 +219,7 @@ function check(name, ok, detail) {
       check('A scriptable file type is refused', badType === 422, `HTTP ${badType}`);
 
       // An unrelated employee cannot download it.
-      await signIn('yuki.tanabe@dreambuilder.example');
+      await signIn('yuki.tanabe@deitemeyerbrothers.example');
       const stranger = await page.evaluate(async (id) => {
         const res = await fetch(`/api/attachments/${id}`, { credentials: 'same-origin' });
         return res.status;
@@ -227,7 +227,7 @@ function check(name, ok, detail) {
       check('An unrelated employee cannot download it', stranger === 404, `HTTP ${stranger}`);
 
       // A system administrator cannot either: review content is not theirs.
-      await signIn('terrence.okafor@dreambuilder.example');
+      await signIn('terrence.okafor@deitemeyerbrothers.example');
       const sysAdmin = await page.evaluate(async (id) => {
         const res = await fetch(`/api/attachments/${id}`, { credentials: 'same-origin' });
         return res.status;
@@ -235,7 +235,7 @@ function check(name, ok, detail) {
       check('A system administrator cannot download review evidence', sysAdmin === 404, `HTTP ${sysAdmin}`);
 
       // Clean up.
-      await signIn('rosa.delgado@dreambuilder.example');
+      await signIn('rosa.delgado@deitemeyerbrothers.example');
       const removed = await page.evaluate(async (id) => {
         const res = await fetch(`/api/attachments/${id}`, { method: 'DELETE', credentials: 'same-origin' });
         return res.status;

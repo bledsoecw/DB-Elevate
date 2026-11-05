@@ -9,7 +9,14 @@ import type { PrismaClient } from '@prisma/client';
  * value is hardcoded anywhere in src/.
  */
 
-export const ORG_SLUG = 'dreambuilder';
+export const ORG_SLUG = 'deitemeyer-brothers';
+
+/**
+ * Slugs this seed used before. A force re-seed removes these too, so an
+ * installation seeded under the old name does not end up with two
+ * organizations side by side after the rename.
+ */
+export const LEGACY_ORG_SLUGS = ['dreambuilder'];
 
 export async function seedOrganization(db: PrismaClient) {
   return db.organization.upsert({
@@ -17,13 +24,20 @@ export async function seedOrganization(db: PrismaClient) {
     update: {},
     create: {
       slug: ORG_SLUG,
-      name: 'Dreambuilder Construction & Remodeling',
+      name: 'Deitemeyer Brothers Roofing & Construction',
       productName: process.env.APP_PRODUCT_NAME || 'DB Elevate',
       wordmarkText: 'DB Elevate',
+      // The sidebar and the sign-in page render this when it is set and fall
+      // back to the text wordmark when it is not. Editable at
+      // Administration -> System -> Branding.
+      logoUrl: '/brand/deitemeyer-brothers.png',
       // Kept in step with the defaults in globals.css, so a seeded
       // organization and a blank one do not look like different products.
-      brandPrimaryHex: '#1d4e89',
-      brandAccentHex: '#22945c',
+      // Sampled from the logo files in public/brand: the navy of the roof
+       // peak and the green of the "Brothers" script. Two hex values are all
+       // the branding system needs — it expands them into the full ramp.
+      brandPrimaryHex: '#1d4482',
+      brandAccentHex: '#57b152',
       timezone: 'America/Denver',
       fiscalYearStart: 1,
       surveyMinResponses: 5,
@@ -31,7 +45,7 @@ export async function seedOrganization(db: PrismaClient) {
       peerReviewMinForAggregate: 3,
       emailProvider: 'outbox',
       emailFromName: 'DB Elevate',
-      emailFromAddr: 'no-reply@dreambuilder.example',
+      emailFromAddr: 'no-reply@deitemeyerbrothers.example',
       aiEnabled: false,
       aiProvider: 'none',
     },

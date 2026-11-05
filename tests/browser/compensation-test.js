@@ -24,11 +24,11 @@ const { PrismaClient } = require('@prisma/client');
 const BASE = 'http://localhost:3000';
 const PW = process.env.SEED_PASSWORD || 'ElevateDemo!2026';
 
-const COMP_ADMIN = 'gloria.mbeki@dreambuilder.example';
-const HR_ADMIN = 'priya.raghunathan@dreambuilder.example';
-const SYS_ADMIN = 'terrence.okafor@dreambuilder.example';
-const MANAGER = 'rosa.delgado@dreambuilder.example';
-const EMPLOYEE = 'yuki.tanabe@dreambuilder.example';
+const COMP_ADMIN = 'gloria.mbeki@deitemeyerbrothers.example';
+const HR_ADMIN = 'priya.raghunathan@deitemeyerbrothers.example';
+const SYS_ADMIN = 'terrence.okafor@deitemeyerbrothers.example';
+const MANAGER = 'rosa.delgado@deitemeyerbrothers.example';
+const EMPLOYEE = 'yuki.tanabe@deitemeyerbrothers.example';
 
 const results = [];
 const check = (n, ok, d) => {

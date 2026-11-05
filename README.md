@@ -62,7 +62,7 @@ privacy thresholds; People → Import to bring in employees from a CSV.
 
 ### Signing in
 
-The seed creates a synthetic company, *Dreambuilder Construction & Remodeling*,
+The seed creates a synthetic company, *Deitemeyer Brothers Roofing & Construction*,
 with 27 employees. Every demonstration account uses the same password:
 
 ```
@@ -74,12 +74,12 @@ worth starting from, because they see genuinely different things:
 
 | Sign in as | Role | What it shows |
 |---|---|---|
-| `priya.raghunathan@dreambuilder.example` | HR / program administrator | Templates, cycles, surveys, calibration, everyone's records |
-| `terrence.okafor@dreambuilder.example` | System administrator | Accounts, roles, branding, audit log — and *no* review content |
-| `gloria.mbeki@dreambuilder.example` | Compensation administrator | Merit cycles, salary bands, pay history — and *no* review content |
-| `rosa.delgado@dreambuilder.example` | Manager, 5 direct reports | Team reviews, team goals, one-on-ones |
-| `marcus.villanueva@dreambuilder.example` | Leadership + approver | Aggregate reporting, review approvals |
-| `yuki.tanabe@dreambuilder.example` | Employee, no reports | Own reviews, own goals, feedback received |
+| `priya.raghunathan@deitemeyerbrothers.example` | HR / program administrator | Templates, cycles, surveys, calibration, everyone's records |
+| `terrence.okafor@deitemeyerbrothers.example` | System administrator | Accounts, roles, branding, audit log — and *no* review content |
+| `gloria.mbeki@deitemeyerbrothers.example` | Compensation administrator | Merit cycles, salary bands, pay history — and *no* review content |
+| `rosa.delgado@deitemeyerbrothers.example` | Manager, 5 direct reports | Team reviews, team goals, one-on-ones |
+| `marcus.villanueva@deitemeyerbrothers.example` | Leadership + approver | Aggregate reporting, review approvals |
+| `yuki.tanabe@deitemeyerbrothers.example` | Employee, no reports | Own reviews, own goals, feedback received |
 
 Signing in as two of these in turn is the quickest way to see the permission
 model working, because it is the part of this application that most of the
@@ -268,7 +268,14 @@ Stated plainly, because a feature list that hides these is not useful.
 Every seeded record carries `isDemoData` (or `isDemoAccount`), which is how
 `/admin/demo-data` can count and remove them exactly rather than guessing from
 a name pattern. Names, addresses and review text are invented and the e-mail
-domain is `.example`, which cannot receive mail. No real person is described.
+domain is `deitemeyerbrothers.example` — `.example` is reserved by RFC 2606 and
+cannot receive mail. No real person is described.
+
+The organization carries the real company name, logo and brand colours so the
+application looks like itself from the first screen; the **people in it are
+synthetic**, and a banner says so on every page. Every salary in the
+demonstration data is invented — bands, pay history and the merit cycle alike.
+Replace it all with `/admin/demo-data` once your own records are imported.
 
 Removing it keeps the configuration — departments, job titles, competencies,
 scales, templates — because that is a reasonable starting point for a real

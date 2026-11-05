@@ -46,16 +46,16 @@ export const PASSWORD = process.env.SEED_PASSWORD || 'ElevateDemo!2026';
 export const NAV_TIMEOUT = Number(process.env.E2E_TIMEOUT_MS || 90000);
 
 export const PEOPLE = {
-  hr: 'priya.raghunathan@dreambuilder.example',
-  sysadmin: 'terrence.okafor@dreambuilder.example',
-  crewLead: 'rosa.delgado@dreambuilder.example',
-  superintendent: 'grant.whitfield@dreambuilder.example',
-  gm: 'marcus.villanueva@dreambuilder.example',
-  apprentice: 'casey.lindgren@dreambuilder.example',
-  carpenter: 'jamal.freeman@dreambuilder.example',
-  otherLead: 'abebe.tesfaye@dreambuilder.example',
-  office: 'yuki.tanabe@dreambuilder.example',
-  deactivated: 'vince.trujillo@dreambuilder.example',
+  hr: 'priya.raghunathan@deitemeyerbrothers.example',
+  sysadmin: 'terrence.okafor@deitemeyerbrothers.example',
+  crewLead: 'rosa.delgado@deitemeyerbrothers.example',
+  superintendent: 'grant.whitfield@deitemeyerbrothers.example',
+  gm: 'marcus.villanueva@deitemeyerbrothers.example',
+  apprentice: 'casey.lindgren@deitemeyerbrothers.example',
+  carpenter: 'jamal.freeman@deitemeyerbrothers.example',
+  otherLead: 'abebe.tesfaye@deitemeyerbrothers.example',
+  office: 'yuki.tanabe@deitemeyerbrothers.example',
+  deactivated: 'vince.trujillo@deitemeyerbrothers.example',
 } as const;
 
 export interface TestResult {
