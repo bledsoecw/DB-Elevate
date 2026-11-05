@@ -5,12 +5,20 @@ import { parseBody, publicHandler, requestMeta } from '@/server/api';
 import { AppError } from '@/server/errors';
 import { verifyPassword } from '@/server/auth/password';
 import { createSession, setSessionCookie } from '@/server/auth/session';
+import { passwordLoginAllowed } from '@/server/auth/sso';
 import { AUDIT_ACTIONS, recordAudit, recordSystemAudit } from '@/server/audit';
 
 const LoginSchema = z.object({
   email: z.string().trim().min(1, 'Enter your work e-mail address.').max(320),
   password: z.string().min(1, 'Enter your password.').max(1024),
 });
+
+/**
+ * A syntactically valid hash that matches nothing, verified against whenever
+ * there is no real hash to check. Keeps the time spent on a failure roughly
+ * constant whether the address is unknown, or known but single-sign-on only.
+ */
+const DUMMY_HASH = 'scrypt$32768$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA';
 
 /** Lockout after repeated failures, to make password guessing impractical. */
 const MAX_FAILED_ATTEMPTS = 8;
@@ -25,6 +33,18 @@ const LOCKOUT_MINUTES = 15;
  * whether the account exists.
  */
 export const POST = publicHandler(async ({ request }) => {
+  // Refused here, not merely hidden on the sign-in page. "Only our Google
+  // Workspace accounts can sign in" is a property of this endpoint or it is
+  // not a property of anything — a hidden form is still a form anybody can
+  // POST to.
+  if (!passwordLoginAllowed()) {
+    throw new AppError(
+      'Password sign-in is turned off for this installation. Use the Google Workspace button on the sign-in page.',
+      403,
+      'password_login_disabled',
+    );
+  }
+
   const { email, password } = await parseBody(request, LoginSchema);
   const meta = requestMeta(request);
   const normalizedEmail = email.toLowerCase();
@@ -42,7 +62,7 @@ export const POST = publicHandler(async ({ request }) => {
 
   if (!user) {
     // Burn comparable time so timing does not distinguish the two cases.
-    await verifyPassword(password, 'scrypt$32768$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA');
+    await verifyPassword(password, DUMMY_HASH);
     throw genericFailure;
   }
 
@@ -53,6 +73,22 @@ export const POST = publicHandler(async ({ request }) => {
       429,
       'account_locked',
     );
+  }
+
+  if (user.passwordHash === null) {
+    /*
+     * An account provisioned for single sign-on has no password to be wrong.
+     *
+     * It would be friendlier to say "use the Google button" — and that is
+     * exactly the message that turns this endpoint into an address checker.
+     * An attacker could sort a list of guessed addresses into "has an account
+     * here" and "does not" without ever guessing a password. So this takes the
+     * same generic failure and the same spent time as an unknown address, and
+     * the guidance lives on the sign-in page, where it costs nothing to say it
+     * to everybody at once.
+     */
+    await verifyPassword(password, DUMMY_HASH);
+    throw genericFailure;
   }
 
   const ok = await verifyPassword(password, user.passwordHash);

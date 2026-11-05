@@ -291,6 +291,7 @@ export async function listAccounts(actor: Actor, search?: string) {
       lockedUntil: true,
       isDemoAccount: true,
       passwordHash: true,
+      externalIdpSubject: true,
       createdAt: true,
       roles: { select: { role: true, grantedAt: true } },
       employee: {
@@ -462,6 +463,47 @@ export async function resetUserPassword(
     entityType: 'user',
     entityId: userId,
     summary: `Password reset for ${user.email} by an administrator; change required at next sign-in`,
+  });
+}
+
+/**
+ * Unlinks an account from the Google identity it is bound to.
+ *
+ * Needed because a sign-in is refused when an address matches an account that
+ * is already linked to a *different* Google subject — the recycled-address
+ * case. Refusing is right, but it is a dead end unless somebody can clear the
+ * link, and telling a person to "ask an administrator" is only honest if the
+ * administrator has a control to use.
+ *
+ * Every session is ended at the same time. If the link was wrong, anything
+ * signed in under it should stop.
+ */
+export async function unlinkSsoIdentity(actor: Actor, userId: string): Promise<void> {
+  if (!canManageAccountsAndRoles(actor)) {
+    throw new ForbiddenError('Only a system administrator can unlink a sign-in identity.');
+  }
+  const user = await prisma.user.findFirst({
+    where: { id: userId, orgId: actor.orgId },
+    select: { id: true, email: true, externalIdpSubject: true },
+  });
+  if (!user) throw new NotFoundError();
+  if (!user.externalIdpSubject) {
+    throw new ConflictError('That account is not linked to a Google identity.');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { externalIdpSubject: null } });
+    await tx.session.deleteMany({ where: { userId } });
+  });
+
+  await recordAudit(actor, {
+    action: AUDIT_ACTIONS.SSO_UNLINKED,
+    entityType: 'user',
+    entityId: userId,
+    summary:
+      `Unlinked ${user.email} from its Google account. The next successful Google sign-in for ` +
+      `that address will claim the account and link afresh.`,
+    metadata: { previousSubject: user.externalIdpSubject },
   });
 }
 

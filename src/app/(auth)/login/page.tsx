@@ -5,6 +5,9 @@ import { prisma } from '@/server/db';
 import { getActor } from '@/server/authz/actor';
 import { getPublicBranding } from '@/server/services/branding';
 import { Wordmark } from '@/components/ui/wordmark';
+import { ssoPublicState } from '@/server/auth/sso';
+import { GoogleButton } from './google-button';
+import { SsoNotice } from './sso-notice';
 import { DemoButton, LoginForm } from './login-form';
 
 export const metadata = { title: 'Sign in' };
@@ -67,7 +70,7 @@ async function demoAccounts() {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; sso?: string }>;
 }) {
   const actor = await getActor();
   if (actor) redirect('/');
@@ -80,6 +83,8 @@ export default async function LoginPage({
 
   const employeeCount = await prisma.employee.count().catch(() => 0);
   const needsSetup = employeeCount === 0;
+
+  const sso = ssoPublicState();
 
   // Only ever read in development; see devLoginEnabled().
   const demoPassword = devLoginEnabled() ? (process.env.SEED_PASSWORD || 'ElevateDemo!2026') : null;
@@ -160,8 +165,12 @@ export default async function LoginPage({
 
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Sign in</h1>
           <p className="mt-1.5 text-sm text-slate-600">
-            Use your work e-mail address and the password you were given.
+            {sso.enabled
+              ? `Use your ${sso.domains[0] ?? 'work'} Google account.`
+              : 'Use your work e-mail address and the password you were given.'}
           </p>
+
+          <SsoNotice code={params.sso} />
 
           {needsSetup && (
             <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -182,11 +191,47 @@ export default async function LoginPage({
             </div>
           )}
 
-          <div className="mt-6">
-            <LoginForm nextPath={params.next ?? '/'} />
-          </div>
+          {sso.enabled && (
+            <div className="mt-6">
+              <GoogleButton nextPath={params.next} />
+              {!sso.passwordAllowed && (
+                <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                  Sign-in is restricted to{' '}
+                  <strong className="font-semibold">
+                    {sso.domains.join(' and ')}
+                  </strong>{' '}
+                  Google Workspace accounts. Password sign-in is turned off for this installation —
+                  the server refuses it, not just this page.
+                </p>
+              )}
+            </div>
+          )}
 
-          {accounts.length > 0 && demoPassword && (
+          {sso.enabled && sso.passwordAllowed && (
+            <div className="mt-7 flex items-center gap-3" aria-hidden>
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">or</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+          )}
+
+          {(!sso.enabled || sso.passwordAllowed) && (
+            <div className="mt-6">
+              <LoginForm nextPath={params.next ?? '/'} />
+              {sso.enabled && (
+                <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                  Accounts set up for Google Workspace have no password — use the button above.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/*
+            Hidden when passwords are refused: the panel performs a real
+            password sign-in, so with single sign-on enforced every button on
+            it would fail. A control that cannot work should not be offered.
+          */}
+          {accounts.length > 0 && demoPassword && (!sso.enabled || sso.passwordAllowed) && (
             <div className="mt-8 rounded-lg border border-dashed border-slate-300 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>

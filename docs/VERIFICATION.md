@@ -14,10 +14,10 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 |---|---|
 | `npm run typecheck` | Clean |
 | `npm run build` (production) | Succeeds |
-| `npm test` — unit | **177 / 177 passed** |
+| `npm test` — unit | **210 / 210 passed** |
 | `npm run test:e2e` — browser workflow and permissions | **43 / 43 passed** |
 | Catalogue administration (browser) | **16 / 16 passed** |
-| System administration and role separation (browser) | **29 / 29 passed** |
+| System administration and role separation (browser) | **33 / 33 passed** |
 | Calibration (browser) | **23 / 23 passed** |
 | Development plans and account (browser) | **28 / 28 passed** |
 | AI gating and attachments (browser) | **26 / 26 passed** |
@@ -25,12 +25,13 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 | Compensation access (browser) | **44 / 44 passed** |
 | Compensation flow end to end (browser) | **22 / 22 passed** |
 | Compensation budget ceilings (browser) | **18 / 18 passed** |
+| Google Workspace SSO (browser, own server) | **19 / 19 passed** |
 | Demonstration sign-in panel (browser) | **7 / 7 passed** |
 | First run on an empty organization (browser) | **4 / 4 passed** |
 | Layout, desktop 1440px and phone 390px | No horizontal overflow on 20 pages |
 | Console / server errors during browser runs | None |
 
-**443 automated checks**, all passing.
+**500 automated checks**, all passing.
 
 Two caveats about that number, both earned.
 
@@ -80,7 +81,7 @@ the action. The pattern is the same one as the original 500: **a coverage count
 measures what was looked at, not what works**, and a test that cannot find its
 target passes most loudly of all.
 
-## Unit tests (177)
+## Unit tests (210)
 
 Pure functions, no database.
 
@@ -89,6 +90,7 @@ Pure functions, no database.
 | `review-score` | 24 | Normalization, exclusion reasons, section and overall weighting, final-score renormalization, drafts excluded |
 | `policy` | 60 | The permission matrix, including both administrative role splits |
 | `compensation-money` | 34 | Integer minor units and basis points, rounding once, band midpoints, the merit matrix, budget arithmetic |
+| `sso` | 33 | Every ID token claim rule, the configuration's fail-closed defaults, and the code exchange against a fake Google |
 | `survey-privacy` | 24 | Threshold, small-group and complement suppression, filter limits, verbatim rules, stable shuffle |
 | `goal-progress` | 21 | Reported vs computed, divergence, milestone denominators, risk flags |
 | `ai-provider` | 14 | Mock determinism, in-text labelling, refusal of unimplemented providers, context digest |
@@ -222,6 +224,34 @@ every decision has to be 0%, a submission containing increases is refused
 and a submission where everything is 0% succeeds. A figure: going over is
 reported on screen while allocating and not blocked, and submission is refused
 (**409**) with the exact amount it is over by.
+
+**Google Workspace SSO (19/19)** — run against a server booted with SSO
+configured, using a fake OAuth client. Nothing in this suite contacts Google:
+the redirect to `accounts.google.com` is inspected, never followed.
+
+With SSO enforced: the Google button is offered and the password form is not;
+the demonstration panel is withheld too, because it performs a password
+sign-in; the redirect carries PKCE (`S256`), a state and a nonce, asks Google
+for this Workspace only, and does not contain the client secret; the state,
+nonce and verifier are set as **httpOnly** cookies; a callback with no sign-in
+in progress is refused, as is one whose state does not match the browser; a
+cancelled consent screen is reported as cancelled rather than as an error; and
+a crafted `?sso=` value produces no markup, runs no script, and falls back to a
+message written in the source.
+
+**And the one that matters: `POST /api/auth/login` returns 403 with a correct
+password.** Hiding the form is not the control; refusing the request is.
+
+With `ALLOW_PASSWORD_LOGIN=true`: both ways in are offered and a password
+sign-in returns 200, while an unknown address still gets the same generic 401
+as before.
+
+**System administration also covers unlinking (33/33)** — an account bound to a
+Google identity is shown as linked, an administrator is offered an Unlink
+control, and using it clears the stored subject *and* ends that account's
+sessions. This exists because the sign-in refusal for a reused address tells
+the person to ask an administrator, and that instruction is only honest if the
+administrator has something to click.
 
 **AI and attachments (26/26)** — AI reports itself disabled with a specific
 reason; a suggestion request is refused (**409**) with that reason; the mock
@@ -359,6 +389,14 @@ Stated plainly.
 - **Live AI providers.** Only the mock provider is implemented. The gate, the
   refusals, the budget ceiling and the context rules are tested; the HTTP call
   to a real provider does not exist.
+- **The live Google round trip.** Every rule that decides who may sign in is
+  tested against a fake Google, and the plumbing is tested against a server
+  with SSO configured — but no request has ever reached `accounts.google.com`.
+  That needs a real OAuth client, a real Workspace account and a public https
+  callback. The first real sign-in will be the first exercise of the signature
+  verification and the token exchange against the actual Google. Budget a few
+  minutes for `redirect_uri_mismatch` if the callback registered in the console
+  does not match `APP_URL` exactly.
 - **Backup and restore.** The procedure in [DEPLOYMENT.md](DEPLOYMENT.md) is
   written from the schema and the storage layout. It has **not been executed**
   end to end. Do not treat it as verified; run it on a copy before relying on it.

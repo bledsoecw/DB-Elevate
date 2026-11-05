@@ -238,7 +238,16 @@ export default async function AccountsPage({
                           </p>
                         )}
                         {!a.passwordHash && (
-                          <p className="mt-1 text-xs text-slate-500">No password set</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {a.externalIdpSubject
+                              ? 'Signs in with Google — no password'
+                              : 'No password set'}
+                          </p>
+                        )}
+                        {a.passwordHash && a.externalIdpSubject && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Linked to a Google account
+                          </p>
                         )}
                         {a.employee?.employmentStatus === 'terminated' && (
                           <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
@@ -264,6 +273,7 @@ export default async function AccountsPage({
                             status: a.status,
                             roles,
                             personName: a.employee ? fullName(a.employee) : a.email,
+                            ssoLinked: a.externalIdpSubject !== null,
                           }}
                           isSelf={a.id === actor.userId}
                           lastActiveSysAdmin={

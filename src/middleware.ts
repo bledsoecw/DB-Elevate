@@ -20,6 +20,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = [
   '/login',
   '/api/auth/login',
+  // The single-sign-on round trip happens before there is a session, so both
+  // ends of it have to be reachable without one. Neither grants anything on
+  // its own: the callback verifies Google's response before issuing a session.
+  '/api/auth/sso/start',
+  '/api/auth/sso/callback',
   '/api/health',
   '/api/jobs/run',
   '/favicon.ico',

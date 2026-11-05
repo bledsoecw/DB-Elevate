@@ -28,7 +28,8 @@
     "setup:env": "node scripts/setup-env.mjs",
     "create-admin": "tsx --conditions=react-server scripts/create-admin.ts",
     "setup:blank": "node scripts/setup-env.mjs && npm install && prisma migrate deploy && prisma generate",
-    "test:compensation": "SEED_FORCE=1 tsx prisma/seed.ts && node tests/browser/compensation-test.js && node tests/browser/compensation-flow-test.js && SEED_FORCE=1 tsx prisma/seed.ts && node tests/browser/compensation-budget-test.js && SEED_FORCE=1 tsx prisma/seed.ts"
+    "test:compensation": "SEED_FORCE=1 tsx prisma/seed.ts && node tests/browser/compensation-test.js && node tests/browser/compensation-flow-test.js && SEED_FORCE=1 tsx prisma/seed.ts && node tests/browser/compensation-budget-test.js && SEED_FORCE=1 tsx prisma/seed.ts",
+    "test:sso": "node tests/browser/sso-test.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -37,6 +38,7 @@
     "@prisma/client": "^6.19.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "jose": "^6.2.15",
     "lucide-react": "^0.468.0",
     "next": "^15.5.29",
     "react": "^19.3.1",

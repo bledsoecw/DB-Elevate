@@ -204,6 +204,12 @@ and an exceptions worklist.
 | **Leadership** | Aggregate reporting across the organization. No individual drafts, no private notes. |
 | **Employee** | Own records, plus whatever is explicitly shared. Held by every account. |
 
+**Signing in** is either a password or a Google Workspace account. With
+`GOOGLE_CLIENT_ID` configured, sign-in is restricted to a named Workspace
+domain and **the password endpoint refuses every request** unless
+`ALLOW_PASSWORD_LOGIN=true` — enforced on the server, not by hiding the form.
+See [docs/SSO.md](docs/SSO.md).
+
 **Manager is not a role.** It is structural: someone is a manager because people
 report to them. For a historical review it is resolved against the reporting
 line *as it stood when that cycle launched*, so a reorganization cannot
@@ -230,8 +236,11 @@ Stated plainly, because a feature list that hides these is not useful.
   increase applies to the current base in full with no proration for a mid-year
   starter. See [docs/COMPENSATION.md](docs/COMPENSATION.md) and
   [docs/EXTENSION-PLAN.md](docs/EXTENSION-PLAN.md).
-- **No SSO.** Password sessions only. An adapter seam exists
-  (`User.externalIdpSubject`) but no provider is wired.
+- **SSO is Google Workspace only.** No SAML, no Okta, no Microsoft Entra. The
+  live round trip to Google has not been exercised — it needs a real OAuth
+  client and a public https callback — though every rule that decides who may
+  sign in is tested against a fake Google. See
+  [docs/SSO.md](docs/SSO.md).
 - **SQLite by default.** The schema is Postgres-compatible and uses no SQLite-
   specific features, but the committed migration is SQLite's. Moving to Postgres
   means changing the datasource and regenerating migrations.
@@ -258,6 +267,7 @@ Stated plainly, because a feature list that hides these is not useful.
 | [PRIVACY.md](docs/PRIVACY.md) | Private notes, confidential vs anonymous, survey suppression |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environment, migrations, jobs, backup and restore, recurring costs |
 | [COMPENSATION.md](docs/COMPENSATION.md) | Merit cycles, integer money, bands, append-only pay history |
+| [SSO.md](docs/SSO.md) | Google Workspace sign-in: setup, what is checked, what is not tested |
 | [EXTENSION-PLAN.md](docs/EXTENSION-PLAN.md) | Talent views, integrations, live AI, and what compensation still lacks |
 | [VERIFICATION.md](docs/VERIFICATION.md) | What was tested, what passed, what remains unverified |
 | [DECISIONS.md](docs/DECISIONS.md) | Decisions that are not obvious from the code, and why |

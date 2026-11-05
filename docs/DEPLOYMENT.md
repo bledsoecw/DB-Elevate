@@ -37,6 +37,11 @@ than configuration:
 | `EMAIL_TRANSPORT_CONFIGURED` | unset | **Nothing is e-mailed unless this is `true`** |
 | `AI_BILLING_APPROVED` | unset | **No paid AI provider can be enabled unless this is `true`** |
 | `JOBS_TOKEN` | empty | Enables `POST /api/jobs/run`. Empty means that route returns 404 |
+| `GOOGLE_CLIENT_ID` | empty | Empty means password sign-in only. Set, and Google Workspace sign-in is offered |
+| `GOOGLE_CLIENT_SECRET` | empty | **Secret.** Used once, server to server, in the token exchange |
+| `GOOGLE_WORKSPACE_DOMAIN` | empty | The domain(s) allowed to sign in. Without it SSO stays **off** rather than accepting any Google account |
+| `ALLOW_PASSWORD_LOGIN` | unset | **Once SSO is on, `POST /api/auth/login` returns 403 unless this is `true`** |
+| `SSO_AUTO_PROVISION` | unset | `true` creates an account on first sign-in for anyone in the domain. Off by default |
 
 ### Production checklist
 
@@ -48,7 +53,23 @@ APP_URL=https://...
 STORAGE_DIR=/var/lib/db-elevate/attachments
 ENABLE_DEV_LOGIN=false           # also ignored automatically, but be explicit
 JOBS_TOKEN=...                   # openssl rand -hex 32
+
+# Google Workspace sign-in. See docs/SSO.md for the console steps.
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...         # secret: set it in the host, not in a file
+GOOGLE_WORKSPACE_DOMAIN=deitemeyerbrothers.com
+# ALLOW_PASSWORD_LOGIN is deliberately left unset, which turns passwords OFF.
 ```
+
+With single sign-on enforced, create the first administrator as an SSO account
+or it will not be able to sign in:
+
+```bash
+npm run create-admin -- --email you@deitemeyerbrothers.com --name "Your Name" --sso
+```
+
+The script refuses to create a password account while SSO is enforced, rather
+than leaving you with credentials the server will not accept.
 
 `ENABLE_DEV_LOGIN` is checked as `process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_LOGIN === 'true'`,
 so a production build cannot show the demo panel even if the variable is left

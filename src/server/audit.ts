@@ -19,6 +19,10 @@ export const AUDIT_ACTIONS = {
   LOGIN_FAILED: 'auth.login.failed',
   LOGOUT: 'auth.logout',
   PASSWORD_CHANGED: 'auth.password.changed',
+  SSO_LINKED: 'auth.sso.linked',
+  SSO_UNLINKED: 'auth.sso.unlinked',
+  SSO_REFUSED: 'auth.sso.refused',
+  SSO_PROVISIONED: 'auth.sso.provisioned',
 
   // People
   EMPLOYEE_CREATED: 'employee.created',

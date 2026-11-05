@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound, Settings2, UserPlus } from 'lucide-react';
+import { KeyRound, Settings2, Unlink, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Checkbox, FormError, Input } from '@/components/ui/form';
@@ -24,6 +24,8 @@ export interface AccountSummary {
   status: string;
   roles: Role[];
   personName: string;
+  /** True when the account is bound to a Google identity. */
+  ssoLinked: boolean;
 }
 
 export function AccountControls({
@@ -93,6 +95,23 @@ function ManageDialog({
       await api.post(`/api/admin/accounts/${account.id}/status`, { status });
       toast.success(status === 'suspended' ? 'Account suspended.' : 'Account reactivated.');
       onClose();
+      router.refresh();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function unlinkSso() {
+    setBusy('sso');
+    setError(null);
+    try {
+      await api.del(`/api/admin/accounts/${account.id}/sso`);
+      toast.success(
+        'Google link removed.',
+        'The next Google sign-in for this address will claim the account.',
+      );
       router.refresh();
     } catch (e) {
       setError(errorMessage(e));
@@ -190,6 +209,17 @@ function ManageDialog({
               >
                 Reset password
               </Button>
+              {account.ssoLinked && (
+                <Button
+                  size="sm"
+                  icon={<Unlink className="h-3.5 w-3.5" />}
+                  loading={busy === 'sso'}
+                  onClick={unlinkSso}
+                  title="Clear the link to this person's Google account"
+                >
+                  Unlink Google
+                </Button>
+              )}
               {account.status === 'active' ? (
                 <Button
                   size="sm"

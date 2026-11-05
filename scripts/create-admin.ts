@@ -16,6 +16,7 @@
 import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword, passwordProblems } from '../src/server/auth/password';
+import { parseDomains } from '../src/server/auth/sso-config';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +25,7 @@ interface Args {
   name?: string;
   org?: string;
   password?: string;
+  sso?: boolean;
   help?: boolean;
 }
 
@@ -36,6 +38,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === '--name') args.name = argv[++i];
     else if (arg === '--org') args.org = argv[++i];
     else if (arg === '--password') args.password = argv[++i];
+    else if (arg === '--sso') args.sso = true;
   }
   return args;
 }
@@ -51,9 +54,15 @@ const USAGE = `
     --org       "<name>"     Company name. Default: "Your Company".
                              Ignored if an organization already exists.
     --password  <value>      Optional. One is generated if omitted.
+    --sso                    Create a single-sign-on account with NO password.
+                             Use this when GOOGLE_CLIENT_ID is configured and
+                             password sign-in is turned off, which is the usual
+                             production setup. The address must be in the
+                             Workspace domain named by GOOGLE_WORKSPACE_DOMAIN,
+                             and the person signs in with the Google button.
 
-  The password is printed once and never stored in plain text. If an
-  administrator already exists this refuses to run; use Administration ->
+  Without --sso the password is printed once and never stored in plain text.
+  If an administrator already exists this refuses to run; use Administration ->
   Accounts to create further accounts.
 `;
 
@@ -124,11 +133,50 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const password = args.password ?? generatePassword();
-  const problems = passwordProblems(password);
-  if (problems.length > 0) {
-    console.error(`\n  That password is not acceptable: ${problems.join(' ')}\n`);
+  /*
+   * The bootstrap trap this avoids: with single sign-on enforced, an account
+   * created with a password can never be used, because the password endpoint
+   * refuses every request. The first administrator would be locked out of the
+   * installation they just created.
+   */
+  const ssoMode = args.sso === true;
+  const allowedDomains = parseDomains(process.env.GOOGLE_WORKSPACE_DOMAIN);
+
+  if (ssoMode) {
+    if (allowedDomains.length === 0) {
+      console.error(
+        '\n  --sso needs GOOGLE_WORKSPACE_DOMAIN to be set, so the account is created in a\n' +
+          '  domain that can actually sign in.\n',
+      );
+      return 1;
+    }
+    const domain = email.slice(email.lastIndexOf('@') + 1);
+    if (!allowedDomains.includes(domain)) {
+      console.error(
+        `\n  ${email} is not in ${allowedDomains.join(' or ')}, so single sign-on would refuse it.\n`,
+      );
+      return 1;
+    }
+    if (args.password) {
+      console.error('\n  --sso and --password cannot be combined: an SSO account has no password.\n');
+      return 1;
+    }
+  } else if (allowedDomains.length > 0 && process.env.ALLOW_PASSWORD_LOGIN !== 'true') {
+    console.error(
+      '\n  Single sign-on is configured and password sign-in is off, so an account with a\n' +
+        '  password could not be used. Re-run with --sso, or set ALLOW_PASSWORD_LOGIN=true\n' +
+        '  if you deliberately want both.\n',
+    );
     return 1;
+  }
+
+  const password = ssoMode ? null : (args.password ?? generatePassword());
+  if (password !== null) {
+    const problems = passwordProblems(password);
+    if (problems.length > 0) {
+      console.error(`\n  That password is not acceptable: ${problems.join(' ')}\n`);
+      return 1;
+    }
   }
 
   const org =
@@ -149,7 +197,7 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const passwordHash = await hashPassword(password);
+  const passwordHash = password === null ? null : await hashPassword(password);
 
   const { employee } = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
@@ -159,8 +207,9 @@ async function main(): Promise<number> {
         passwordHash,
         status: 'active',
         // Chosen on the command line and printed to a terminal, so it should
-        // be replaced with something only this person knows.
-        mustChangePassword: true,
+        // be replaced with something only this person knows. Meaningless for
+        // an SSO account, which has no password at all.
+        mustChangePassword: passwordHash !== null,
         roles: {
           create: [
             // Both administrative roles, deliberately. The split matters, but
@@ -212,14 +261,21 @@ async function main(): Promise<number> {
   console.log(`  Organization  ${org.name}`);
   console.log(`  Name          ${firstName} ${lastName}`);
   console.log(`  Sign in with  ${email}`);
-  if (!args.password) {
+  if (ssoMode) {
+    console.log('  Sign-in       Google Workspace. This account has no password.');
+  } else if (!args.password) {
     console.log(`  Password      ${password}`);
     console.log('                Shown once. It is stored only as a hash.');
   }
   console.log(`  Employee id   ${employee.id}`);
   console.log(line);
   console.log('\n  Next:');
-  console.log('    1. npm run dev, then sign in. You will be asked to change the password.');
+  if (ssoMode) {
+    console.log('    1. npm run dev, then use the "Sign in with Google" button. The account');
+    console.log('       links itself to your Google identity on that first sign-in.');
+  } else {
+    console.log('    1. npm run dev, then sign in. You will be asked to change the password.');
+  }
   console.log('    2. Administration -> Organization: set the company and product name,');
   console.log('       colours, time zone and privacy thresholds.');
   console.log('    3. People -> Import: bring in your employees from a CSV.');

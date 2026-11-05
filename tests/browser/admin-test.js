@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const { PrismaClient } = require('@prisma/client');
 const BASE = 'http://localhost:3000';
 const PASSWORD = 'ElevateDemo!2026';
 
@@ -324,6 +325,54 @@ function check(name, ok, detail) {
   });
   check('Plain employee blocked everywhere in administration', Object.values(empApi).every((s) => s === 403),
     JSON.stringify(empApi));
+
+  // --- Unlinking a Google identity ---------------------------------------
+  // A sign-in is refused when an address matches an account already bound to a
+  // different Google account. That refusal tells the person to ask an
+  // administrator, so the administrator has to actually have the control.
+  {
+    const db = new PrismaClient();
+    const target = await db.user.findFirst({
+      where: { email: { contains: 'gloria' } },
+      select: { id: true, email: true },
+    });
+    await db.user.update({
+      where: { id: target.id },
+      data: { externalIdpSubject: 'test-google-subject-000111222' },
+    });
+    await db.$disconnect();
+
+    // Back to the system administrator: the checks just above sign in as a
+    // plain employee, who is redirected away from Administration.
+    await signIn('terrence.okafor@deitemeyerbrothers.example');
+    await page.goto(BASE + '/admin/accounts');
+    await page.waitForSelector('[data-hydrated="true"]');
+    await page.waitForTimeout(600);
+    const row = page.locator('tr', { hasText: target.email }).first();
+    check('A linked account is shown as linked to Google',
+      /Google/i.test(await row.innerText()), target.email);
+
+    await row.getByRole('button', { name: 'Manage' }).click();
+    await page.waitForSelector('[role="dialog"]');
+    const unlink = page.getByRole('dialog').getByRole('button', { name: /Unlink Google/i });
+    const offered = (await unlink.count()) > 0;
+    check('An administrator is offered a control to unlink it', offered);
+
+    if (offered) {
+      await unlink.click();
+      await page.waitForTimeout(1500);
+      const db2 = new PrismaClient();
+      const after = await db2.user.findUnique({
+        where: { id: target.id },
+        select: { externalIdpSubject: true },
+      });
+      const sessions = await db2.session.count({ where: { userId: target.id } });
+      await db2.$disconnect();
+      check('Unlinking clears the stored Google identity', after.externalIdpSubject === null,
+        String(after.externalIdpSubject));
+      check('Unlinking also ends that account\u2019s sessions', sessions === 0, `${sessions} left`);
+    }
+  }
 
   console.log('\n--- console/server errors ---');
   console.log(errors.length ? [...new Set(errors)].join('\n') : '(none)');

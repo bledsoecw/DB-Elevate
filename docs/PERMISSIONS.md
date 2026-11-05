@@ -102,6 +102,32 @@ the reporting graph.
 Granted explicitly to one person when genuinely needed. The grant is audited,
 which is the point of requiring it to be deliberate.
 
+## How somebody signs in
+
+Two ways, and which are available is a property of the deployment rather than
+of a settings page:
+
+| Configuration | Password sign-in | Google Workspace |
+| --- | --- | --- |
+| No `GOOGLE_CLIENT_ID` | Yes | Not offered |
+| SSO configured | **Refused, HTTP 403** | Restricted to `GOOGLE_WORKSPACE_DOMAIN` |
+| SSO configured, `ALLOW_PASSWORD_LOGIN=true` | Yes | Yes |
+
+The refusal is in `POST /api/auth/login`, not in the markup of the sign-in
+page. A hidden form is still a form anybody can post to.
+
+The allowed domain is deliberately **not** editable from inside the
+application. A system administrator can reset passwords and grant roles; they
+cannot turn "this one Workspace" into "any Google account" from a settings
+screen. That decision lives in the environment and needs a deploy to change.
+
+An account with no password hash cannot be signed into with a password at all,
+and the endpoint takes the same time and returns the same generic message for
+it as for an address that does not exist — otherwise the endpoint would sort
+guessed addresses into "has an account here" and "does not".
+
+Details, including every ID token claim that is checked: [SSO.md](SSO.md).
+
 ## The history rule
 
 **Changes to today's reporting structure must not alter historical review
