@@ -205,13 +205,13 @@ export default async function HomePage() {
               label="Waiting for approval"
               value={hr.pendingApprovals}
               tone={hr.pendingApprovals > 0 ? 'warning' : 'neutral'}
-              href="/reviews/approvals"
+              href="/reviews?tab=approvals"
             />
             <StatTile
               label="Overdue assignments"
               value={hr.cycles.reduce((s, c) => s + c.overdueAssignments, 0)}
               tone={hr.cycles.reduce((s, c) => s + c.overdueAssignments, 0) > 0 ? 'danger' : 'success'}
-              href="/reports/review-completion"
+              href="/reports?tab=reviews"
             />
             <StatTile
               label="Needs attention"
