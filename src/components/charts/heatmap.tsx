@@ -28,7 +28,6 @@ export function Heatmap({
   footnote,
   rowAxisLabel,
   colAxisLabel,
-  onCellHref,
 }: {
   title: string;
   subtitle?: string;
@@ -39,7 +38,6 @@ export function Heatmap({
   footnote?: React.ReactNode;
   rowAxisLabel?: string;
   colAxisLabel?: string;
-  onCellHref?: (row: number, col: number) => string | null;
 }) {
   const [hover, setHover] = useState<{ cell: HeatCell; x: number; y: number } | null>(null);
 
@@ -96,12 +94,9 @@ export function Heatmap({
                     {colLabels.map((_, colIndex) => {
                       const cell = cellAt(rowIndex, colIndex);
                       const fill = cell.count === 0 ? '#f8fafc' : sequentialStep(cell.count / max);
-                      const href = onCellHref?.(rowIndex, colIndex) ?? null;
-                      const Tag = href ? 'a' : 'div';
                       return (
-                        <Tag
+                        <div
                           key={colIndex}
-                          {...(href ? { href } : {})}
                           className="flex h-14 items-center justify-center rounded-sm transition hover:ring-2 hover:ring-brand-400"
                           style={{ backgroundColor: fill }}
                           aria-label={`${rowLabels[rowIndex]}, ${colLabels[colIndex]}: ${cell.count} ${cell.count === 1 ? 'person' : 'people'}`}
@@ -128,7 +123,7 @@ export function Heatmap({
                           >
                             {cell.count === 0 ? '·' : cell.count}
                           </span>
-                        </Tag>
+                        </div>
                       );
                     })}
                   </div>

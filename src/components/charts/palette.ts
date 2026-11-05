@@ -146,14 +146,46 @@ export function compactNumber(value: number): string {
   return value.toLocaleString('en-US');
 }
 
-/** Axis ticks rounded to clean numbers. */
+/**
+ * Axis ticks rounded to clean numbers.
+ *
+ * The top tick is always at or above the largest value, so the tallest mark
+ * can never be drawn past the top of the plot area and clipped.
+ */
 export function niceTicks(max: number, count = 4): number[] {
-  if (!Number.isFinite(max) || max <= 0) return [0];
+  if (!Number.isFinite(max) || max <= 0) return [0, 1];
   const rawStep = max / count;
   const magnitude = 10 ** Math.floor(Math.log10(rawStep));
   const candidates = [1, 2, 2.5, 5, 10].map((m) => m * magnitude);
   const step = candidates.find((c) => c >= rawStep) ?? 10 * magnitude;
+  const top = Math.ceil(max / step) * step;
   const ticks: number[] = [];
-  for (let v = 0; v <= max + step * 0.001; v += step) ticks.push(Math.round(v * 1000) / 1000);
+  for (let v = 0; v <= top + step * 0.001; v += step) ticks.push(Math.round(v * 1000) / 1000);
   return ticks;
+}
+
+/**
+ * Serializable number formatting for charts.
+ *
+ * Charts are client components and their pages are server components, so a
+ * formatter cannot be passed as a function across that boundary. Callers name
+ * a format instead and the chart resolves it.
+ */
+export type ValueFormat = 'integer' | 'oneDecimal' | 'twoDecimal' | 'percent' | 'compact';
+
+export function formatValue(value: number, format: ValueFormat = 'oneDecimal'): string {
+  if (!Number.isFinite(value)) return '—';
+  switch (format) {
+    case 'integer':
+      return String(Math.round(value));
+    case 'twoDecimal':
+      return value.toFixed(2);
+    case 'percent':
+      return `${Math.round(value)}%`;
+    case 'compact':
+      return compactNumber(value);
+    case 'oneDecimal':
+    default:
+      return String(Math.round(value * 10) / 10);
+  }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { CATEGORICAL, CHROME, niceTicks } from './palette';
+import { CATEGORICAL, CHROME, formatValue, niceTicks, type ValueFormat } from './palette';
 import { ChartFrame, ChartTooltip, NoChartData } from './chart-frame';
 
 export interface LineSeries {
@@ -30,7 +30,7 @@ export function LineChart({
   height = 200,
   yMin = 0,
   yMax,
-  valueFormatter,
+  valueFormat = 'oneDecimal',
   yLabel,
 }: {
   title: string;
@@ -40,7 +40,8 @@ export function LineChart({
   height?: number;
   yMin?: number;
   yMax?: number;
-  valueFormatter?: (value: number) => string;
+  /** Named rather than a function: this crosses a server/client boundary. */
+  valueFormat?: ValueFormat;
   yLabel?: string;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -62,7 +63,7 @@ export function LineChart({
   const ticks = yMax !== undefined ? niceTicks(yMax, 4) : niceTicks(dataMax, 4);
   const top = yMax ?? Math.max(ticks[ticks.length - 1] ?? dataMax, dataMax);
   const span = Math.max(top - yMin, 0.0001);
-  const fmt = valueFormatter ?? ((v: number) => String(Math.round(v * 10) / 10));
+  const fmt = (v: number) => formatValue(v, valueFormat);
 
   const padL = 38;
   const padR = 12;

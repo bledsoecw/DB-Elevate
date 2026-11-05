@@ -299,7 +299,7 @@ export default async function SurveyPage({
                           value: d.count,
                         }))}
                         yLabel="Responses"
-                        valueFormatter={(v) => String(Math.round(v))}
+                        valueFormat="integer"
                         footnote={
                           <>
                             Counted from {q.responseCount} answers to this question.

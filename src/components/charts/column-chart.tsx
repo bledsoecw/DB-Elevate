@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CHROME, ORDINAL_5, niceTicks } from './palette';
+import { CHROME, ORDINAL_5, formatValue, niceTicks, type ValueFormat } from './palette';
 import { ChartFrame, ChartTooltip, NoChartData, type LegendEntry } from './chart-frame';
 
 export interface ColumnDatum {
@@ -28,7 +28,7 @@ export function ColumnChart({
   height = 180,
   legend,
   yLabel,
-  valueFormatter,
+  valueFormat = 'oneDecimal',
   highlightIndex,
 }: {
   title: string;
@@ -39,7 +39,8 @@ export function ColumnChart({
   height?: number;
   legend?: LegendEntry[];
   yLabel?: string;
-  valueFormatter?: (value: number) => string;
+  /** Named rather than a function: this crosses a server/client boundary. */
+  valueFormat?: ValueFormat;
   /** Emphasises one column, e.g. the current period. */
   highlightIndex?: number;
 }) {
@@ -57,7 +58,7 @@ export function ColumnChart({
   const rawMax = Math.max(...data.map((d) => d.value), 0);
   const ticks = niceTicks(rawMax || 1, 4);
   const axisMax = Math.max(ticks[ticks.length - 1] ?? 1, 0.0001);
-  const fmt = valueFormatter ?? ((v: number) => String(Math.round(v * 10) / 10));
+  const fmt = (v: number) => formatValue(v, valueFormat);
 
   return (
     <ChartFrame
@@ -70,7 +71,7 @@ export function ColumnChart({
         rows: data.map((d) => [d.label, d.displayValue ?? fmt(d.value)]),
       }}
     >
-      <div className="relative">
+      <div className="relative pt-4">
         <div className="flex gap-2">
           {/* Y axis ticks */}
           <div
@@ -133,23 +134,25 @@ export function ColumnChart({
                     }}
                     onMouseLeave={() => setHover(null)}
                   >
-                    <div className="relative flex w-full max-w-[48px] justify-center">
-                      {d.value > 0 && (
-                        <span
-                          className="absolute -top-5 w-full text-center text-[11px] font-semibold tabular-nums text-slate-700"
-                          style={{ bottom: `${pct}%`, top: 'auto', marginBottom: 2 }}
-                        >
-                          {d.displayValue ?? fmt(d.value)}
-                        </span>
-                      )}
+                    {/* Full height so the bar's percentage height has something
+                        to be a percentage of. */}
+                    <div className="relative h-full w-full max-w-[44px]">
                       <div
-                        className="w-full rounded-t"
+                        className="absolute bottom-0 w-full rounded-t"
                         style={{
                           height: `${Math.max(pct, d.value > 0 ? 1.5 : 0)}%`,
                           backgroundColor: fill,
                           opacity: dim ? 0.45 : 1,
                         }}
                       />
+                      {d.value > 0 && (
+                        <span
+                          className="absolute w-full text-center text-[11px] font-semibold tabular-nums text-slate-700"
+                          style={{ bottom: `calc(${Math.max(pct, 1.5)}% + 3px)` }}
+                        >
+                          {d.displayValue ?? fmt(d.value)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -241,9 +244,9 @@ export function StackedColumnChart({
           {groups.map((g, gi) => {
             const total = totals[gi] ?? 0;
             return (
-              <div key={g.label} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+              <div key={g.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
                 <div
-                  className="flex w-full flex-col-reverse justify-start"
+                  className="flex w-full max-w-[56px] flex-col-reverse justify-start"
                   style={{ height: `${(total / axisMax) * 100}%`, gap: 2 }}
                   role="img"
                   aria-label={`${g.label}: ${stages

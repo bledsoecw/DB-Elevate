@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { CHROME, ORDINAL_5, SURFACE_GAP, inkOn } from './palette';
+import { CHROME, ORDINAL_5, SURFACE_GAP, formatValue, inkOn, type ValueFormat } from './palette';
 import { ChartFrame, ChartTooltip, NoChartData, type LegendEntry } from './chart-frame';
 
 export interface BarDatum {
@@ -34,7 +34,7 @@ export function BarChart({
   footnote,
   color,
   valueSuffix = '',
-  valueFormatter,
+  valueFormat = 'oneDecimal',
   legend,
   barHeight = 20,
   labelWidth = 190,
@@ -47,7 +47,8 @@ export function BarChart({
   footnote?: React.ReactNode;
   color?: string;
   valueSuffix?: string;
-  valueFormatter?: (value: number) => string;
+  /** Named rather than a function: this crosses a server/client boundary. */
+  valueFormat?: ValueFormat;
   legend?: LegendEntry[];
   barHeight?: number;
   labelWidth?: number;
@@ -66,7 +67,7 @@ export function BarChart({
   const seriesColor = color ?? ORDINAL_5[2];
   const axisMax = Math.max(max ?? Math.max(...data.map((d) => d.value)), 0.0001);
   const rowHeight = barHeight + 16;
-  const fmt = valueFormatter ?? ((v: number) => `${Math.round(v * 10) / 10}${valueSuffix}`);
+  const fmt = (v: number) => `${formatValue(v, valueFormat)}${valueSuffix}`;
 
   return (
     <ChartFrame
