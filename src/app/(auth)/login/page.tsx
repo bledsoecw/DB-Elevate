@@ -4,9 +4,11 @@ import { HardHat, ShieldCheck } from 'lucide-react';
 import { prisma } from '@/server/db';
 import { getActor } from '@/server/authz/actor';
 import { getPublicBranding } from '@/server/services/branding';
+import { Wordmark } from '@/components/ui/wordmark';
 import { DemoButton, LoginForm } from './login-form';
 
 export const metadata = { title: 'Sign in' };
+
 
 /**
  * Whether the one-click demo panel may be shown.
@@ -86,24 +88,26 @@ export default async function LoginPage({
     <main className="flex min-h-screen flex-col lg:flex-row">
       {/* Brand panel. Hidden on phones so the form is the first thing seen. */}
       <div className="hidden bg-brand-800 lg:flex lg:w-[42%] lg:flex-col lg:justify-between lg:p-12">
-        <div className="flex items-center gap-3">
+        <div>
           {branding.logoUrl ? (
             // A logo is an arbitrary image from the organization's settings and
             // most contain dark ink, which disappears on this dark panel. The
             // white card is what makes any uploaded logo legible here without
             // asking for a second, reversed version of it.
-            <span className="inline-flex items-center rounded-lg bg-white px-3 py-2 shadow-sm">
+            <span className="inline-flex items-center rounded-lg bg-white px-3.5 py-2.5 shadow-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={branding.logoUrl} alt="" className="h-9 w-auto max-w-[210px] object-contain" />
+              <img src={branding.logoUrl} alt="" className="h-10 w-auto max-w-[220px] object-contain" />
             </span>
           ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-accent-600 text-white">
+            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-accent-600 text-white">
               <HardHat aria-hidden className="h-5 w-5" />
             </span>
           )}
-          <span className="text-lg font-semibold tracking-tight text-white">
-            {branding.wordmarkText}
-          </span>
+
+          {/* The company owns the mark above; this names the product under it. */}
+          <div className="mt-7">
+            <Wordmark text={branding.wordmarkText} onDark />
+          </div>
         </div>
 
         <div className="max-w-md">
@@ -136,13 +140,22 @@ export default async function LoginPage({
       {/* Form panel */}
       <div className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-10 lg:px-16">
         <div className="mx-auto w-full max-w-md">
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-700 text-white">
-              <HardHat aria-hidden className="h-5 w-5" />
-            </span>
-            <span className="text-lg font-semibold tracking-tight text-slate-900">
-              {branding.wordmarkText}
-            </span>
+          <div className="mb-9 lg:hidden">
+            {branding.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.logoUrl}
+                alt={branding.orgName}
+                className="h-9 w-auto max-w-[190px] object-contain"
+              />
+            ) : (
+              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-700 text-white">
+                <HardHat aria-hidden className="h-5 w-5" />
+              </span>
+            )}
+            <div className="mt-5">
+              <Wordmark text={branding.wordmarkText} onDark={false} size="sm" />
+            </div>
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Sign in</h1>
