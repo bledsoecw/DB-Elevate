@@ -49,5 +49,14 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  /*
+   * Static assets skip the gate entirely. Fonts are in this list because they
+   * were not, and the sign-in page — where by definition nobody has a session
+   * cookie — had its font requests redirected to /login and rendered in the
+   * fallback face. Nothing here is sensitive: these are the same files any
+   * visitor to the sign-in page already receives.
+   */
+  matcher: [
+    '/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf)$).*)',
+  ],
 };

@@ -30,9 +30,36 @@ const config: Config = {
           600: 'rgb(var(--accent-600) / <alpha-value>)',
           700: 'rgb(var(--accent-700) / <alpha-value>)',
         },
+        /*
+         * Tailwind's `slate` is deliberately REPLACED rather than extended.
+         *
+         * The interface refers to slate in several hundred places. Rather than
+         * rewrite every one, the ramp itself is remapped to the warm stone
+         * neutrals the DB Portal uses, so the whole application shifts from
+         * cool grey to warm in one move and stays consistent by construction.
+         * The values are the portal's own where it defines them.
+         *
+         * Consequence worth knowing: `slate` here is NOT Tailwind's slate. A
+         * contributor expecting the stock cool grey will get warm stone, which
+         * is the point, but it is a surprise if you do not know.
+         */
+        slate: {
+          50: '#faf8f4',
+          100: '#f0ede6',
+          200: '#e2ddd2',
+          300: '#d4cdc0',
+          400: '#a49d8f',
+          500: '#8d8678',
+          600: '#6f6a5f',
+          700: '#534f47',
+          800: '#2b3033',
+          900: '#1a1e21',
+          950: '#0e1113',
+        },
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        head: ['var(--font-head)', 'var(--font-sans)', 'sans-serif'],
       },
       boxShadow: {
         card: '0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.08)',

@@ -11,35 +11,57 @@
  * rebuild, and a new organization gets a coherent palette from two hex values.
  */
 :root {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
-
-  /* Default brand: Deitemeyer Brothers navy, taken from the wordmark. */
-  --brand-50: 238 244 251;
-  --brand-100: 214 228 243;
-  --brand-200: 173 201 228;
-  --brand-300: 124 165 208;
-  --brand-400: 80 126 180;
-  --brand-500: 44 97 158;
-  --brand-600: 29 78 137;
-  --brand-700: 23 62 110;
-  --brand-800: 18 48 85;
-  --brand-900: 13 34 61;
+  /*
+   * Typography. The faces are self-hosted from public/fonts and declared in
+   * fonts.css — no request to a font CDN at build time or at runtime. The
+   * fallbacks matter because they render during the swap.
+   */
+  --font-sans: 'Barlow', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-head: 'Oswald', 'Barlow', ui-sans-serif, system-ui, sans-serif;
 
   /*
-   * Default accent: the green from the "Brothers" script in the logo.
-   *
-   * Accent is used sparingly — recognition, the overdue badge, a single
-   * emphasis per screen. It is never the only thing distinguishing a state;
-   * every status colour is paired with an icon and a label so the meaning
-   * survives for anyone who cannot separate the hues.
+   * Brand ramp, built from the Deitemeyer Brothers navy (#1a4789) in the
+   * wordmark and the DB Portal's own tokens. Overridden at runtime by the
+   * organization's configured colours, so re-branding needs no rebuild.
    */
-  --accent-50: 236 248 241;
-  --accent-100: 209 239 221;
-  --accent-400: 85 184 131;
-  --accent-500: 52 166 108;
-  --accent-600: 34 148 92;
-  --accent-700: 24 115 71;
+  --brand-50: 232 238 248;
+  --brand-100: 201 215 236;
+  --brand-200: 158 182 219;
+  --brand-300: 110 145 199;
+  --brand-400: 66 110 175;
+  --brand-500: 42 92 168;
+  --brand-600: 26 71 137;
+  --brand-700: 22 48 92;
+  --brand-800: 16 36 70;
+  --brand-900: 11 25 48;
+
+  /*
+   * Accent: the green from the "Brothers" script (#3eb44a). Used sparingly —
+   * recognition, an overdue badge, one emphasis per screen. Never the only
+   * thing distinguishing a state; every status pairs colour with an icon and
+   * a label.
+   */
+  --accent-50: 236 248 237;
+  --accent-100: 209 239 212;
+  --accent-400: 102 201 112;
+  --accent-500: 78 190 89;
+  --accent-600: 62 180 74;
+  --accent-700: 45 140 55;
+
+  /*
+   * Warm neutrals, taken from the portal rather than Tailwind's cool slate.
+   * This is the change that does most of the work: navy and green over a warm
+   * stone background reads as the same company as the portal, where the same
+   * colours over cool grey did not.
+   */
+  --surface: 255 255 255;
+  --canvas: 246 244 239;
+  --hair: 226 221 210;
+  --chip: 237 234 226;
+  --ink: 26 30 33;
+  --ink-muted: 111 106 95;
+  --ink-faint: 141 134 120;
 }
 
 html {
@@ -47,8 +69,22 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--ink));
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Oswald is a condensed display face: it carries page and section titles, but
+ * it is a poor reading face, so it is confined to headings and never applied
+ * to body copy.
+ */
+h1,
+h2,
+h3 {
+  font-family: var(--font-head);
+  letter-spacing: -0.01em;
 }
 
 /* Visible, consistent focus for keyboard users on every interactive element. */

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import './fonts.css';
 import './globals.css';
 import { ToastProvider } from '@/components/ui/toast';
 import { getPublicBranding, brandingCss } from '@/server/services/branding';
@@ -18,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#1d4e89',
+  themeColor: '#1a4789',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
