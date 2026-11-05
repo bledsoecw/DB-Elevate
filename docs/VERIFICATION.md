@@ -21,10 +21,17 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 | Calibration (browser) | **23 / 23 passed** |
 | Development plans and account (browser) | **28 / 28 passed** |
 | AI gating and attachments (browser) | **26 / 26 passed** |
+| Demonstration sign-in panel (browser) | **7 / 7 passed** |
 | Layout, desktop 1440px and phone 390px | No horizontal overflow on 20 pages |
 | Console / server errors during browser runs | None |
 
-**297 automated checks**, all passing.
+**304 automated checks**, all passing.
+
+A caveat about that number: it was 297 and entirely green while the sign-in
+page was returning HTTP 500 under its documented default configuration. The
+suites all authenticated by filling the form directly, so none of them ever
+rendered the demo panel. Coverage counts measure what was looked at, not what
+works.
 
 ## Unit tests (134)
 
@@ -185,7 +192,24 @@ Recorded because the method matters more than the count.
    *attempted* rather than notifications *created*, so a sweep that created
    nothing reported 37 reminders. `notify()` now returns whether it wrote a row.
 
-7. **A documentation claim that was false.** The README said comparisons between
+7. **The demonstration sign-in panel was broken, and had never been rendered.**
+   It appears only when `ENABLE_DEV_LOGIN=true`, and the `.env` used throughout
+   development happened not to set that variable — so the first screen a reader
+   of the README would see returned HTTP 500 on every run above. `DemoButton`
+   was attached to `LoginForm` as a static property, and a server component
+   importing from a `'use client'` module receives a client reference proxy
+   rather than the function object, so the property was `undefined`.
+   TypeScript could not see it because the assignment makes the property look
+   real. Found by cloning the pushed branch and following the README exactly.
+   Fixed, and `tests/browser/devlogin-test.js` now covers it.
+
+8. **`npm run setup` failed on a clean clone.** `.env` is gitignored, so a
+   fresh checkout has only `.env.example`, and Prisma needs `DATABASE_URL`
+   before it can read the schema. The documented one-command setup therefore
+   did not work for anybody but me. `scripts/setup-env.mjs` now creates `.env`
+   with a generated `SESSION_SECRET` and never touches an existing one.
+
+9. **A documentation claim that was false.** The README said comparisons between
    incompatible templates were "refused rather than drawn". The code draws them
    with a caveat naming the differing templates. The document was corrected to
    match the code.

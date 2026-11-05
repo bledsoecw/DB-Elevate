@@ -81,8 +81,15 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
 /**
  * Development-only shortcut. It submits the real credentials to the real
  * endpoint; there is no separate code path in the authentication logic.
+ *
+ * Exported on its own rather than hung off LoginForm as a static property.
+ * A server component importing from a 'use client' module receives a client
+ * reference proxy, not the function object, so `LoginForm.DemoButton` is
+ * undefined at render time and React fails with "Element type is invalid".
+ * TypeScript cannot see it, because the assignment makes the property look
+ * real.
  */
-function DemoButton({
+export function DemoButton({
   email,
   password,
   name,
@@ -122,5 +129,3 @@ function DemoButton({
     </>
   );
 }
-
-LoginForm.DemoButton = DemoButton;

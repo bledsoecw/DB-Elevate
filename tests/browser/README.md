@@ -28,6 +28,10 @@ node tests/browser/calibration-test.js
 node tests/browser/development-test.js
 node tests/browser/infra-test.js
 node tests/browser/layout-check.js /tmp/shots
+
+# Needs a server started with the demo panel enabled:
+ENABLE_DEV_LOGIN=true npx next dev --turbopack -p 3100 &
+node tests/browser/devlogin-test.js http://localhost:3100
 ```
 
 Each exits non-zero if any check fails, so they work in CI once a server is up.
@@ -46,6 +50,7 @@ toggle organization settings.
 | `calibration-test.js` | 23 | A full session: open, propose, decide, revert, finalise — plus the refusals (short reason, outstanding decisions, finalised session) and who may run one |
 | `development-test.js` | 28 | Development vs improvement plan visibility per actor, asserted on rendered page content; the subject's record-progress-but-not-edit split; `/account` password rules |
 | `infra-test.js` | 26 | AI disabled by default and why, the mock provider's labelling and digest, context-assembly permissions, attachment upload/download/delete and who is refused |
+| `devlogin-test.js` | 7 | The demonstration sign-in panel: that it renders with `ENABLE_DEV_LOGIN=true`, that each button performs a real password sign-in against the real endpoint, and that it does not bypass authentication. Needs a server started with the flag on |
 | `layout-check.js` | 20 pages × 2 viewports | Horizontal overflow and tap targets at 1440px and 390px; writes screenshots to the directory given as the first argument |
 
 ## Known residue

@@ -8,18 +8,24 @@ rating scales, templates and reporting lines are all configuration.
 
 ## Running it
 
+Needs Node 20 or later (built and tested on 22). From a fresh clone:
+
 ```bash
 npm run setup
 ```
 
-That installs dependencies, applies migrations, generates the Prisma client and
-seeds a demonstration organization. Then:
+That creates `.env` from `.env.example` with a generated `SESSION_SECRET`,
+installs dependencies, applies migrations, generates the Prisma client and
+seeds a demonstration organization. An existing `.env` is never overwritten.
 
 ```bash
 npm run dev
 ```
 
-The application is at **http://localhost:3000**.
+The application is then at **http://localhost:3000 on the machine running that
+command**. If you started it somewhere else — a container, a remote box, a
+cloud session — `localhost` on your own computer will not reach it; use that
+host's address, or run the two commands above locally.
 
 ### Signing in
 

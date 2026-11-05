@@ -15,7 +15,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "setup": "npm install && prisma migrate deploy && prisma generate && npm run db:seed",
+    "setup": "node scripts/setup-env.mjs && npm install && prisma migrate deploy && prisma generate && npm run db:seed",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "SEED_FORCE=1 tsx prisma/seed.ts && tsx tests/e2e/run.ts",
@@ -24,7 +24,8 @@
     "test:all": "npm run test && npm run test:e2e && npm run test:browser",
     "jobs:dry-run": "tsx --conditions=react-server scripts/run-jobs.ts --dry-run",
     "test:browser": "node tests/browser/catalog-test.js && node tests/browser/admin-test.js && node tests/browser/calibration-test.js && node tests/browser/development-test.js && node tests/browser/infra-test.js",
-    "test:layout": "node tests/browser/layout-check.js"
+    "test:layout": "node tests/browser/layout-check.js",
+    "setup:env": "node scripts/setup-env.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

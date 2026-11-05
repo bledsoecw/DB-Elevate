@@ -4,7 +4,7 @@ import { HardHat, ShieldCheck } from 'lucide-react';
 import { prisma } from '@/server/db';
 import { getActor } from '@/server/authz/actor';
 import { getPublicBranding } from '@/server/services/branding';
-import { LoginForm } from './login-form';
+import { DemoButton, LoginForm } from './login-form';
 
 export const metadata = { title: 'Sign in' };
 
@@ -174,7 +174,7 @@ export default async function LoginPage({
               <ul className="mt-3 divide-y divide-slate-100">
                 {accounts.map((a) => (
                   <li key={a.email}>
-                    <LoginForm.DemoButton
+                    <DemoButton
                       email={a.email}
                       password={demoPassword}
                       name={a.name}
