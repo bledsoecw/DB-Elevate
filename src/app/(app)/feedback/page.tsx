@@ -238,6 +238,7 @@ export default async function FeedbackPage({
         />
         {items.length === 0 ? (
           <EmptyState
+            illustration="feedback"
             icon={<MessageSquarePlus className="h-5 w-5" />}
             title="Nothing here yet"
             description={

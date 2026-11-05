@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { cn, AVATAR_PALETTE, colorFromString, initials } from '@/lib/utils';
+import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 
 /**
  * Server-renderable UI primitives.
@@ -366,22 +367,38 @@ export function EmptyState({
   description,
   action,
   icon,
+  illustration,
   className,
 }: {
   title: string;
   description?: ReactNode;
   action?: ReactNode;
   icon?: ReactNode;
+  /**
+   * Line art for the states a person actually lands on — an empty inbox, no
+   * goals yet, nothing to review. Takes precedence over `icon`.
+   *
+   * Decorative only: the illustrations are aria-hidden and the heading and
+   * description carry the whole message, so nothing is lost without them.
+   */
+  illustration?: IllustrationName;
   className?: string;
 }) {
+  const Art = illustration ? ILLUSTRATIONS[illustration] : null;
   return (
     <div className={cn('px-6 py-12 text-center', className)}>
-      {icon && (
-        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-          {icon}
+      {Art ? (
+        <div className="mb-4 flex justify-center">
+          <Art className="h-28 w-auto" />
         </div>
+      ) : (
+        icon && (
+          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+            {icon}
+          </div>
+        )
       )}
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
       {description && (
         <div className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-slate-600">
           {description}

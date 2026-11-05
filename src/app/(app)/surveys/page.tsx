@@ -109,6 +109,7 @@ export default async function SurveysPage() {
         />
         {surveys.length === 0 ? (
           <EmptyState
+            illustration="results"
             icon={<BarChart3 className="h-5 w-5" />}
             title={isAdmin ? 'No surveys yet' : 'No surveys'}
             description={

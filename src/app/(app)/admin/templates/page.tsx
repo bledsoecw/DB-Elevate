@@ -50,6 +50,7 @@ export default async function TemplatesPage() {
       {active.length === 0 ? (
         <Card>
           <EmptyState
+            illustration="forms"
             icon={<FileText className="h-5 w-5" />}
             title="No templates yet"
             description="Build one from scratch, or start from a seeded starter template and edit it. Nothing is used until you publish it and attach it to a cycle."

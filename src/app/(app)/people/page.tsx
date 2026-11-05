@@ -105,6 +105,7 @@ export default async function PeoplePage({
         />
         {people.length === 0 ? (
           <EmptyState
+            illustration="people"
             icon={<Users className="h-5 w-5" />}
             title={hasFilters ? 'Nobody matches those filters' : 'No employees yet'}
             description={

@@ -69,6 +69,7 @@ export default async function CalibrationPage() {
       {open.length === 0 && finalized.length === 0 ? (
         <Card>
           <EmptyState
+            illustration="results"
             icon={<Scale className="h-5 w-5" />}
             title="No calibration sessions"
             description="Open one when a group's reviews are in and you want to look across them before releasing."

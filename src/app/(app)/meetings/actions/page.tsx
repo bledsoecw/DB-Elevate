@@ -73,6 +73,7 @@ export default async function ActionItemsPage({
         />
         {items.length === 0 ? (
           <EmptyState
+            illustration="clear"
             icon={<CheckSquare className="h-5 w-5" />}
             title="Nothing outstanding"
             description="Action items created in a one-to-one or from a survey result appear here."

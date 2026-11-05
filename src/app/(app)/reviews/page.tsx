@@ -129,6 +129,7 @@ export default async function ReviewsPage({
           />
           {assignments.length === 0 ? (
             <EmptyState
+            illustration="forms"
               icon={<ClipboardCheck className="h-5 w-5" />}
               title="No reviews assigned to you"
               description="When HR launches a cycle that includes you, your self-assessment and any reviews you need to write will appear here."
@@ -221,6 +222,7 @@ export default async function ReviewsPage({
           />
           {teamParticipants.length === 0 ? (
             <EmptyState
+            illustration="forms"
               icon={<Users className="h-5 w-5" />}
               title="No one in your reporting line is in a cycle"
               description="When a cycle that includes your team is launched, each person's progress shows here."
@@ -311,6 +313,7 @@ export default async function ReviewsPage({
           />
           {results.length === 0 ? (
             <EmptyState
+            illustration="forms"
               icon={<FileText className="h-5 w-5" />}
               title="No results yet"
               description="Once a review about you has been completed and released, it appears here and stays available."
@@ -370,7 +373,8 @@ export default async function ReviewsPage({
             description="Reviews that need a decision before the results can be released."
           />
           {approvals.length === 0 ? (
-            <EmptyState title="Nothing waiting on you" description="No reviews need your approval." />
+            <EmptyState
+            illustration="forms" title="Nothing waiting on you" description="No reviews need your approval." />
           ) : (
             <TableWrap>
               <thead>

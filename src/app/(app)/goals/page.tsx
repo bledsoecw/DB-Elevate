@@ -232,6 +232,7 @@ export default async function GoalsPage({
       {goals.length === 0 ? (
         <Card>
           <EmptyState
+            illustration="goals"
             icon={<Target className="h-5 w-5" />}
             title={scope === 'MINE' ? 'You have no goals yet' : 'Nothing to show'}
             description={

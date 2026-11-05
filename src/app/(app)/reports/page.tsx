@@ -112,6 +112,7 @@ export default async function ReportsPage({
       {cycles.length === 0 ? (
         <Card>
           <EmptyState
+            illustration="results"
             title="Nothing to report on yet"
             description="Once a review cycle has been launched, completion, participation and rating reports appear here."
             action={actor.isHrAdmin ? <ButtonLink href="/reviews/cycles/new" variant="primary">Create a review cycle</ButtonLink> : undefined}
@@ -144,7 +145,8 @@ export default async function ReportsPage({
                   description="Submitted reviews against reviews assigned."
                 />
                 {completion.cycles.length === 0 ? (
-                  <EmptyState title="No cycles in your scope" />
+                  <EmptyState
+            illustration="results" title="No cycles in your scope" />
                 ) : (
                   <TableWrap>
                     <thead>
@@ -550,6 +552,7 @@ export default async function ReportsPage({
               ) : (
                 <Card>
                   <EmptyState
+            illustration="results"
                     title="No competency ratings in this cycle"
                     description="Competency ratings appear once manager reviews using a competency template have been submitted."
                   />

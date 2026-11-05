@@ -108,6 +108,7 @@ export default async function TasksPage() {
       {inbox.total === 0 ? (
         <Card>
           <EmptyState
+            illustration="clear"
             icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
             title="Nothing is waiting on you"
             description={

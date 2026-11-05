@@ -76,6 +76,7 @@ export default async function MeetingsPage() {
             />
             {upcoming.length === 0 ? (
               <EmptyState
+            illustration="meetings"
                 icon={<CalendarDays className="h-5 w-5" />}
                 title="Nothing scheduled"
                 description="A recurring one-to-one is the single most useful habit in this system: unfinished agenda items and actions carry forward automatically."
@@ -138,7 +139,8 @@ export default async function MeetingsPage() {
           <Card>
             <CardHeader title="Recent meetings" description="Notes and actions stay available afterwards." />
             {past.length === 0 ? (
-              <EmptyState title="No past meetings" description="Completed meetings appear here with their notes." />
+              <EmptyState
+            illustration="meetings" title="No past meetings" description="Completed meetings appear here with their notes." />
             ) : (
               <ul className="divide-y divide-slate-100">
                 {past.map((m) => (
@@ -167,6 +169,7 @@ export default async function MeetingsPage() {
             <CardHeader title="Recurring series" level={3} />
             {series.length === 0 ? (
               <EmptyState
+            illustration="meetings"
                 title="No recurring one-to-ones"
                 description="A series keeps the cadence and carries unfinished items forward."
               />

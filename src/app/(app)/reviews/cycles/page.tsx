@@ -52,6 +52,7 @@ export default async function CyclesPage() {
       {cycles.length === 0 ? (
         <Card>
           <EmptyState
+            illustration="forms"
             icon={<ClipboardList className="h-5 w-5" />}
             title="No cycles yet"
             description="Build a template first, publish it, then create a cycle that uses it. You choose who takes part before anything is sent."

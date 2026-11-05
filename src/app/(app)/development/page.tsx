@@ -80,6 +80,7 @@ export default async function DevelopmentPage({
       {plans.length === 0 ? (
         <Card>
           <EmptyState
+            illustration="plans"
             icon={<Sprout className="h-5 w-5" />}
             title={
               scope === 'mine'
