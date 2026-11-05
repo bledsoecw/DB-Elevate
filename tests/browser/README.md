@@ -50,6 +50,7 @@ toggle organization settings.
 | `calibration-test.js` | 23 | A full session: open, propose, decide, revert, finalise — plus the refusals (short reason, outstanding decisions, finalised session) and who may run one |
 | `development-test.js` | 28 | Development vs improvement plan visibility per actor, asserted on rendered page content; the subject's record-progress-but-not-edit split; `/account` password rules |
 | `infra-test.js` | 26 | AI disabled by default and why, the mock provider's labelling and digest, context-assembly permissions, attachment upload/download/delete and who is refused |
+| `competencies-test.js` | 6 | Competency profile visibility per actor, including that a system administrator is refused because ratings are review content |
 | `devlogin-test.js` | 7 | The demonstration sign-in panel: that it renders with `ENABLE_DEV_LOGIN=true`, that each button performs a real password sign-in against the real endpoint, and that it does not bypass authentication. Needs a server started with the flag on |
 | `bootstrap-test.js` | 4 | First run on an *empty* organization: the bootstrapped administrator can sign in, all 24 main screens survive having no data, and CSV import is reachable. Needs its own blank database; see the header |
 | `layout-check.js` | 20 pages × 2 viewports | Horizontal overflow and tap targets at 1440px and 390px; writes screenshots to the directory given as the first argument |

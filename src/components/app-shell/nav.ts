@@ -120,6 +120,20 @@ export function navigationFor(actor: Actor): NavSection[] {
     },
     { key: 'surveys', label: 'Surveys', href: '/surveys', icon: 'bar-chart-3', description: 'Engagement and pulse surveys' },
     {
+      key: 'competencies',
+      label: 'Competencies',
+      href: '/competencies',
+      icon: 'award',
+      description: 'What your role is assessed on, and how you have been rated',
+      children: [
+        { key: 'comp-mine', label: 'My competencies', href: '/competencies' },
+        ...(isManager || isHr || isLeadership
+          ? [{ key: 'comp-team', label: isHr ? 'Everyone' : "My team", href: '/competencies/team' }]
+          : []),
+        ...(isHr ? [{ key: 'comp-admin', label: 'Manage competencies', href: '/admin/competencies' }] : []),
+      ],
+    },
+    {
       key: 'development',
       label: 'Development',
       href: '/development',
@@ -128,7 +142,6 @@ export function navigationFor(actor: Actor): NavSection[] {
       children: [
         { key: 'dev-mine', label: 'My plans', href: '/development' },
         ...(isManager ? [{ key: 'dev-team', label: "My team's plans", href: '/development?scope=team' }] : []),
-        ...(isHr ? [{ key: 'dev-competencies', label: 'Competencies', href: '/admin/competencies' }] : []),
       ],
     },
   ];

@@ -7,6 +7,7 @@ import {
   BarChart3,
   Bell,
   CalendarDays,
+  Award,
   ChevronDown,
   Search,
   ClipboardCheck,
@@ -39,6 +40,7 @@ const ICONS: Record<string, typeof Home> = {
   'bar-chart-3': BarChart3,
   'graduation-cap': GraduationCap,
   'line-chart': LineChart,
+  award: Award,
   settings: Settings,
   shield: Shield,
 };
