@@ -34,7 +34,6 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@next/font": "^14.2.15",
     "@prisma/client": "^6.19.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
