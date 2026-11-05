@@ -105,10 +105,20 @@ function check(name, ok, detail) {
   await page.reload();
   await page.waitForSelector('[data-hydrated="true"]');
   const brandText = await page.locator('aside').first().innerText().catch(() => '');
+  // Case-insensitive: the wordmark lockup renders through text-transform, so
+  // innerText comes back as "PILOT MARK". The absence check below matters more
+  // — a case-sensitive `includes` there would report the wordmark gone while
+  // it was sitting on screen in capitals.
+  const wordmarkRe = /pilot mark/i;
   check('With no logo, the sidebar falls back to the wordmark from the database',
-    brandText.includes('Pilot Mark'), brandText.split('\n')[0]);
+    wordmarkRe.test(brandText), brandText.split('\n')[0]);
 
-  // And with a logo set, the sidebar renders that instead.
+  const logoGoneWhenUnset = (await page.locator('aside img').count()) === 0;
+  check('With no logo, no logo image is rendered in the sidebar', logoGoneWhenUnset);
+
+  // With a logo set, the sidebar shows the company mark AND the product
+  // wordmark under it — the company owns the logo, the product has a name,
+  // and the sidebar says both. They are not alternatives.
   await saveSettings([[/^Logo URL\b/, '/brand/deitemeyer-brothers.png']]);
   await page.reload();
   await page.waitForSelector('[data-hydrated="true"]');
@@ -117,11 +127,12 @@ function check(name, ok, detail) {
     .first()
     .isVisible()
     .catch(() => false);
-  const wordmarkGone = !(await page.locator('aside').first().innerText().catch(() => '')).includes(
-    'Pilot Mark',
+  const wordmarkStill = wordmarkRe.test(
+    await page.locator('aside').first().innerText().catch(() => ''),
   );
-  check('With a logo set, the sidebar renders the logo instead of the wordmark',
-    logoShown && wordmarkGone, logoShown ? 'logo visible' : 'logo missing');
+  check('With a logo set, the sidebar shows the logo and the wordmark together',
+    logoShown && wordmarkStill,
+    `${logoShown ? 'logo visible' : 'logo missing'}, ${wordmarkStill ? 'wordmark present' : 'wordmark missing'}`);
 
   // Put both back exactly as they were.
   await saveSettings([

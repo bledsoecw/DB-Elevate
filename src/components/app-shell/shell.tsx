@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { cn, initials } from '@/lib/utils';
 import { api } from '@/lib/client-api';
+import { Wordmark } from '@/components/ui/wordmark';
 import { activeNavKey, type NavSection } from './nav';
 
 const ICONS: Record<string, typeof Home> = {
@@ -265,7 +266,12 @@ export function AppShell({
 
   const sidebarInner = (
     <>
-      <div className="flex h-16 flex-shrink-0 items-center gap-2.5 border-b border-slate-200 px-4">
+      {/*
+        The company's mark on top, the product's name under it — the same
+        order and the same relationship as the sign-in page, so the two do not
+        disagree about what this application is called.
+      */}
+      <div className="flex-shrink-0 border-b border-slate-200 px-4 py-3.5">
         {branding.logoUrl ? (
           // Sized to the slot rather than to a fixed height: a wordmark is
           // usually wide and short, and capping only the height squeezes it
@@ -275,18 +281,19 @@ export function AppShell({
           <img
             src={branding.logoUrl}
             alt={branding.orgName}
-            className="max-h-11 w-auto max-w-[200px] object-contain"
+            className="max-h-9 w-auto max-w-[190px] object-contain"
           />
         ) : (
-          <>
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-brand-700 text-white">
-              <HardHat aria-hidden className="h-[18px] w-[18px]" />
-            </span>
-            <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-slate-900">
-              {branding.wordmarkText}
-            </span>
-          </>
+          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-700 text-white">
+            <HardHat aria-hidden className="h-[18px] w-[18px]" />
+          </span>
         )}
+        <Wordmark
+          text={branding.wordmarkText}
+          onDark={false}
+          size="xs"
+          className="mt-3"
+        />
       </div>
 
       {navList}
