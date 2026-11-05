@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme tokens.
+ *
+ * The brand ramp is defined here as a default and overridden at runtime by a
+ * <style> block that the app shell renders from the organization's configured
+ * brand colours (Administration -> Branding). That means re-branding needs no
+ * rebuild, and a new organization gets a coherent palette from two hex values.
+ */
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+
+  /* Default brand: deep construction blue */
+  --brand-50: 238 244 251;
+  --brand-100: 214 228 243;
+  --brand-200: 173 201 228;
+  --brand-300: 124 165 208;
+  --brand-400: 80 126 180;
+  --brand-500: 44 97 158;
+  --brand-600: 29 78 137;
+  --brand-700: 23 62 110;
+  --brand-800: 18 48 85;
+  --brand-900: 13 34 61;
+
+  /* Default accent: safety amber */
+  --accent-50: 254 245 234;
+  --accent-100: 253 232 207;
+  --accent-400: 237 150 69;
+  --accent-500: 228 131 43;
+  --accent-600: 224 122 31;
+  --accent-700: 180 94 20;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-family: var(--font-sans);
+}
+
+/* Visible, consistent focus for keyboard users on every interactive element. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--brand-600));
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+/* Skip link, revealed on focus. */
+.skip-link {
+  @apply absolute left-4 z-50 -translate-y-20 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-transform focus:translate-y-4;
+}
+
+/* Thin scrollbars inside scrollable panels, without hiding them entirely. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-300;
+}
+
+/* Text that must wrap inside tables without pushing the layout wide. */
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  /* Printable review results: drop the chrome, keep the content. */
+  .no-print {
+    display: none !important;
+  }
+  body {
+    @apply bg-white;
+  }
+  .print-plain {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .print-break-inside-avoid {
+    break-inside: avoid;
+  }
+  a[href]::after {
+    content: '';
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
