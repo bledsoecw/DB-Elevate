@@ -1,0 +1,1669 @@
+// DB Elevate - performance management platform
+// ---------------------------------------------------------------------------
+// Provider note: SQLite is the default for local development and automated
+// tests because it needs no server process. The schema deliberately avoids
+// SQLite-only constructs and avoids Prisma `enum` (unsupported on SQLite) so
+// the same schema runs on PostgreSQL by changing the datasource provider and
+// re-generating migrations. See docs/DEPLOYMENT.md.
+//
+// Enumerated values live in src/lib/enums.ts as `as const` unions and are
+// validated by Zod at every write boundary.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================================================
+// ORGANIZATION / TENANCY
+// ===========================================================================
+
+model Organization {
+  id          String @id @default(cuid())
+  slug        String @unique
+  name        String // legal / company name, e.g. "Dreambuilder Construction"
+  productName String @default("DB Elevate") // configurable working product name
+
+  // Branding (Admin -> Branding). Hex strings, applied as CSS variables.
+  logoUrl         String?
+  wordmarkText    String?
+  brandPrimaryHex String  @default("#1d4e89")
+  brandAccentHex  String  @default("#e07a1f")
+
+  timezone        String @default("America/Denver")
+  fiscalYearStart Int    @default(1) // 1-12
+  weekStartsOn    Int    @default(0) // 0 = Sunday
+
+  // Privacy / policy configuration
+  surveyMinResponses           Int     @default(5) // k-anonymity threshold for survey reporting
+  surveySuppressComplement     Boolean @default(true)
+  allowSelfReviewSharing       Boolean @default(true)
+  peerReviewMinForAggregate    Int     @default(3)
+  requireReviewAcknowledgement Boolean @default(true)
+
+  // Optional AI assistance - disabled by default, no paid calls without this.
+  aiEnabled           Boolean @default(false)
+  aiProvider          String  @default("none") // none | mock | anthropic | openai | azure-openai
+  aiModel             String?
+  aiMonthlyCallBudget Int     @default(0)
+
+  // Email delivery adapter
+  emailProvider String @default("outbox") // outbox | smtp | ses | sendgrid
+  emailFromName String @default("DB Elevate")
+  emailFromAddr String @default("no-reply@example.invalid")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users               User[]
+  employees           Employee[]
+  departments         Department[]
+  jobTitles           JobTitle[]
+  ratingScales        RatingScale[]
+  competencies        Competency[]
+  competencyLibraries CompetencyLibrary[]
+  reviewTemplates     ReviewTemplate[]
+  reviewCycles        ReviewCycle[]
+  goals               Goal[]
+  feedbackItems       Feedback[]
+  feedbackRequests    FeedbackRequest[]
+  recognitionValues   RecognitionValue[]
+  meetingSeries       MeetingSeries[]
+  meetings            Meeting[]
+  actionItems         ActionItem[]
+  surveys             Survey[]
+  developmentPlans    DevelopmentPlan[]
+  calibrationSessions CalibrationSession[]
+  notifications       Notification[]
+  emailOutbox         EmailMessage[]
+  auditEvents         AuditEvent[]
+  attachments         Attachment[]
+  scheduledJobs       ScheduledJob[]
+  aiSuggestions       AiSuggestion[]
+  importBatches       ImportBatch[]
+
+  @@map("organizations")
+}
+
+// ===========================================================================
+// IDENTITY / AUTH
+// ===========================================================================
+
+model User {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  email        String
+  passwordHash String? // null for SSO-only accounts
+  status       String  @default("active") // active | invited | suspended | deactivated
+
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+
+  // External identity adapter (see src/server/integrations/identity.ts)
+  externalIdpSubject String?
+
+  isDemoAccount Boolean @default(false)
+
+  employee Employee?
+
+  roles    UserRole[]
+  sessions Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditEvents               AuditEvent[]
+  releasedCycleParticipants CycleParticipant[] @relation("ParticipantReleasedBy")
+
+  @@unique([orgId, email])
+  @@index([orgId, status])
+  @@map("users")
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // SYS_ADMIN | HR_ADMIN | LEADERSHIP | EMPLOYEE  (MANAGER is structural, see docs/PERMISSIONS.md)
+  role      String
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  @@unique([userId, role])
+  @@map("user_roles")
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique // sha256 of the opaque cookie value; raw token never stored
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ===========================================================================
+// ORG STRUCTURE / PEOPLE
+// ===========================================================================
+
+model Department {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name     String
+  code     String?
+  parentId String?
+  parent   Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
+  children Department[] @relation("DepartmentTree")
+
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  employees Employee[]
+  jobTitles JobTitle[]
+  goals     Goal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, active])
+  @@map("departments")
+}
+
+model JobTitle {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name         String
+  level        String? // e.g. Apprentice | Journeyman | Lead | Manager | Director
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  active       Boolean     @default(true)
+
+  employees           Employee[]
+  competencyLibraryId String?
+  competencyLibrary   CompetencyLibrary? @relation(fields: [competencyLibraryId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, active])
+  @@map("job_titles")
+}
+
+model Employee {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
+
+  employeeNumber String?
+  firstName      String
+  lastName       String
+  preferredName  String?
+  workEmail      String
+  workPhone      String?
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  jobTitleId   String?
+  jobTitle     JobTitle?   @relation(fields: [jobTitleId], references: [id])
+
+  // Current manager. Historical reporting lines live in ManagerAssignment and
+  // are what review records resolve against.
+  managerId     String?
+  manager       Employee?  @relation("EmployeeManager", fields: [managerId], references: [id])
+  directReports Employee[] @relation("EmployeeManager")
+
+  hireDate         DateTime?
+  terminationDate  DateTime?
+  employmentType   String    @default("full_time") // full_time | part_time | seasonal | subcontractor
+  employmentStatus String    @default("active") // active | on_leave | terminated
+  workLocation     String?
+  crew             String? // field crew / project team label
+
+  // Review participation defaults (configurable per employee)
+  reviewEligible Boolean @default(true)
+  reviewCohort   String? // e.g. "Field", "Office", "Leadership"
+
+  avatarColor String? // derived accent for initials avatar
+  isDemoData  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  managerAssignments ManagerAssignment[] @relation("AssignmentEmployee")
+  managedAssignments ManagerAssignment[] @relation("AssignmentManager")
+
+  cycleParticipations CycleParticipant[] @relation("ParticipantEmployee")
+  snapshotManagerOf   CycleParticipant[] @relation("ParticipantManagerSnapshot")
+  reviewAssignments   ReviewAssignment[] @relation("AssignmentReviewer")
+  reviewApprovals     ReviewApproval[]
+  reopenedAssignments ReviewAssignment[] @relation("AssignmentReopenedBy")
+
+  ownedGoals         Goal[]             @relation("GoalOwner")
+  goalCollaborations GoalCollaborator[]
+  goalUpdates        GoalUpdate[]
+  goalComments       GoalComment[]
+
+  authoredFeedback  Feedback[]        @relation("FeedbackAuthor")
+  receivedFeedback  Feedback[]        @relation("FeedbackAbout")
+  requestedFeedback FeedbackRequest[] @relation("FeedbackRequester")
+  feedbackAsks      FeedbackRequest[] @relation("FeedbackResponder")
+  feedbackAboutMe   FeedbackRequest[] @relation("FeedbackRequestAbout")
+
+  meetingSeriesA        MeetingSeries[]      @relation("SeriesPersonA")
+  meetingSeriesB        MeetingSeries[]      @relation("SeriesPersonB")
+  meetingParticipations MeetingParticipant[]
+  agendaItems           AgendaItem[]
+  meetingNotes          MeetingNote[]
+  ownedActions          ActionItem[]         @relation("ActionOwner")
+  assignedActions       ActionItem[]         @relation("ActionAssigner")
+
+  surveyInvitations    SurveyInvitation[]
+  namedSurveyResponses SurveyResponse[]   @relation("SurveyRespondent")
+
+  developmentPlans        DevelopmentPlan[]    @relation("PlanEmployee")
+  developmentActions      DevelopmentAction[]  @relation("DevActionOwner")
+  planCheckIns            PlanCheckIn[]
+  facilitatedCalibrations CalibrationSession[] @relation("CalibrationFacilitator")
+  calibrationDecisions    CalibrationEntry[]   @relation("CalibrationDecidedBy")
+
+  notifications Notification[]
+  auditEvents   AuditEvent[]
+  attachments   Attachment[]
+  aiSuggestions AiSuggestion[]
+
+  @@unique([orgId, workEmail])
+  @@index([orgId, employmentStatus])
+  @@index([orgId, managerId])
+  @@index([orgId, departmentId])
+  @@index([orgId, lastName])
+  @@map("employees")
+}
+
+/// Append-only history of reporting relationships. A manager change closes the
+/// open row and inserts a new one; existing review records keep pointing at the
+/// manager captured when their cycle launched.
+model ManagerAssignment {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation("AssignmentEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  managerId  String?
+  manager    Employee? @relation("AssignmentManager", fields: [managerId], references: [id])
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime? // null = currently in effect
+  reason        String?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+
+  @@index([employeeId, effectiveFrom])
+  @@index([managerId])
+  @@map("manager_assignments")
+}
+
+// ===========================================================================
+// RATING SCALES / COMPETENCIES
+// ===========================================================================
+
+model RatingScale {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  /// When false the scale is directional only and is excluded from numeric scoring.
+  numeric     Boolean @default(true)
+  archived    Boolean @default(false)
+
+  levels          RatingScaleLevel[]
+  questions       TemplateQuestion[]
+  surveyQuestions SurveyQuestion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, name])
+  @@map("rating_scales")
+}
+
+model RatingScaleLevel {
+  id      String      @id @default(cuid())
+  scaleId String
+  scale   RatingScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+
+  value       Int // numeric anchor used by scoring
+  label       String
+  description String?
+  sortOrder   Int     @default(0)
+
+  @@unique([scaleId, value])
+  @@map("rating_scale_levels")
+}
+
+model Competency {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  category    String? // e.g. Safety, Craftsmanship, Leadership, Client Service
+  active      Boolean @default(true)
+
+  behaviors        CompetencyBehavior[]
+  libraryItems     CompetencyLibraryItem[]
+  questions        TemplateQuestion[]
+  feedbackItems    Feedback[]
+  devActions       DevelopmentAction[]
+  feedbackRequests FeedbackRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, name])
+  @@map("competencies")
+}
+
+/// Level-by-level behavioral descriptors ("skill mapping by level").
+model CompetencyBehavior {
+  id           String     @id @default(cuid())
+  competencyId String
+  competency   Competency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  level        String // Apprentice | Journeyman | Lead | Manager | Director
+  descriptor   String
+  sortOrder    Int        @default(0)
+
+  @@unique([competencyId, level])
+  @@map("competency_behaviors")
+}
+
+model CompetencyLibrary {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  active      Boolean @default(true)
+
+  items     CompetencyLibraryItem[]
+  jobTitles JobTitle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, name])
+  @@map("competency_libraries")
+}
+
+model CompetencyLibraryItem {
+  id           String            @id @default(cuid())
+  libraryId    String
+  library      CompetencyLibrary @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  competencyId String
+  competency   Competency        @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  weight       Float             @default(1)
+  sortOrder    Int               @default(0)
+
+  @@unique([libraryId, competencyId])
+  @@map("competency_library_items")
+}
+
+// ===========================================================================
+// REVIEW TEMPLATES (versioned, copy-on-publish)
+// ===========================================================================
+
+model ReviewTemplate {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  category    String  @default("custom") // annual | quarterly | new_hire | project | development | pip | custom
+  status      String  @default("draft") // draft | published | archived
+  isStarter   Boolean @default(false) // seeded starter template, fully editable
+
+  versions ReviewTemplateVersion[]
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, status])
+  @@map("review_templates")
+}
+
+/// A version is mutable only while `publishedAt` is null. Publishing freezes it;
+/// further edits create a new version by deep copy. Cycles reference a version,
+/// never the template, so later edits cannot rewrite history.
+model ReviewTemplateVersion {
+  id         String         @id @default(cuid())
+  templateId String
+  template   ReviewTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  versionNumber Int
+  changeNote    String?
+  publishedAt   DateTime?
+  publishedById String?
+  archivedAt    DateTime?
+
+  /// Per-reviewer-kind weighting used to roll assignment scores into a final score.
+  selfWeight    Float @default(0)
+  managerWeight Float @default(1)
+  peerWeight    Float @default(0)
+
+  sections     TemplateSection[]
+  cycles       ReviewCycle[]
+  participants CycleParticipant[]
+  assignments  ReviewAssignment[]
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([templateId, versionNumber])
+  @@map("review_template_versions")
+}
+
+model TemplateSection {
+  id        String                @id @default(cuid())
+  versionId String
+  version   ReviewTemplateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  title        String
+  instructions String?
+  sortOrder    Int     @default(0)
+  weight       Float   @default(1)
+  /// Which reviewer kinds answer this section: comma-separated of SELF,MANAGER,PEER
+  appliesTo    String  @default("SELF,MANAGER,PEER")
+
+  questions TemplateQuestion[]
+
+  @@index([versionId, sortOrder])
+  @@map("template_sections")
+}
+
+model TemplateQuestion {
+  id        String          @id @default(cuid())
+  sectionId String
+  section   TemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  sortOrder          Int     @default(0)
+  /// TEXT | RATING | MULTIPLE_CHOICE | MULTI_SELECT | COMPETENCY_RATING | GOAL_REVIEW | SCALE_WITH_COMMENT
+  type               String
+  prompt             String
+  helpText           String?
+  required           Boolean @default(false)
+  weight             Float   @default(1)
+  /// Allow an explicit "Not applicable" answer, excluded from scoring.
+  allowNotApplicable Boolean @default(false)
+  /// Free-text companion box on rating questions.
+  commentEnabled     Boolean @default(false)
+  commentRequired    Boolean @default(false)
+  maxLength          Int?
+
+  ratingScaleId String?
+  ratingScale   RatingScale? @relation(fields: [ratingScaleId], references: [id])
+
+  competencyId String?
+  competency   Competency? @relation(fields: [competencyId], references: [id])
+
+  /// For GOAL_REVIEW: which goals are pulled in (OWNED | OWNED_AND_TEAM | CYCLE_PERIOD)
+  goalScope String?
+
+  /// JSON array of choice strings for MULTIPLE_CHOICE / MULTI_SELECT
+  choicesJson String?
+
+  /// Comma-separated reviewer kinds that see this question; empty = inherit section
+  appliesTo String?
+
+  responses ReviewResponse[]
+
+  @@index([sectionId, sortOrder])
+  @@map("template_questions")
+}
+
+// ===========================================================================
+// REVIEW CYCLES / ASSIGNMENTS / RESPONSES
+// ===========================================================================
+
+model ReviewCycle {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  /// DRAFT | SCHEDULED | ACTIVE | CLOSED | CANCELLED
+  status      String  @default("DRAFT")
+
+  templateVersionId String
+  templateVersion   ReviewTemplateVersion @relation(fields: [templateVersionId], references: [id])
+
+  periodStart DateTime
+  periodEnd   DateTime
+
+  selfReviewEnabled    Boolean @default(true)
+  managerReviewEnabled Boolean @default(true)
+  peerReviewEnabled    Boolean @default(false)
+  peerReviewTarget     Int     @default(3)
+  /// NAMED | CONFIDENTIAL | ANONYMOUS_AGGREGATE - see docs/PRIVACY.md
+  peerVisibilityMode   String  @default("CONFIDENTIAL")
+
+  requireApproval   Boolean @default(false)
+  /// MANAGER_OF_MANAGER | HR_ADMIN
+  approvalAuthority String  @default("MANAGER_OF_MANAGER")
+
+  /// MANUAL | AUTO_ON_APPROVAL
+  releaseMode            String  @default("MANUAL")
+  /// Manager may see the employee self-review before submitting their own.
+  shareSelfWithManager   Boolean @default(true)
+  /// Employee sees peer content on release (subject to peerVisibilityMode).
+  sharePeerWithEmployee  Boolean @default(false)
+  /// Require acknowledgement after release.
+  requireAcknowledgement Boolean @default(true)
+
+  selfDueAt         DateTime?
+  managerDueAt      DateTime?
+  peerDueAt         DateTime?
+  scheduledLaunchAt DateTime?
+
+  launchedAt  DateTime?
+  closedAt    DateTime?
+  createdById String?
+  isDemoData  Boolean   @default(false)
+
+  participants        CycleParticipant[]
+  calibrationSessions CalibrationSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, status])
+  @@map("review_cycles")
+}
+
+/// One row per employee being reviewed in a cycle. Carries the launch-time
+/// snapshot of org context so later transfers never rewrite history.
+model CycleParticipant {
+  id      String      @id @default(cuid())
+  cycleId String
+  cycle   ReviewCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation("ParticipantEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // --- launch-time snapshot ---
+  managerIdSnapshot      String?
+  managerSnapshot        Employee? @relation("ParticipantManagerSnapshot", fields: [managerIdSnapshot], references: [id])
+  departmentNameSnapshot String?
+  jobTitleNameSnapshot   String?
+  managerNameSnapshot    String?
+  snapshotTakenAt        DateTime?
+
+  templateVersionId String
+  templateVersion   ReviewTemplateVersion @relation(fields: [templateVersionId], references: [id])
+
+  /// NOT_STARTED | IN_PROGRESS | AWAITING_APPROVAL | APPROVED | RELEASED | ACKNOWLEDGED | CLOSED
+  status String @default("NOT_STARTED")
+
+  releasedAt   DateTime?
+  releasedById String?
+  releasedBy   User?     @relation("ParticipantReleasedBy", fields: [releasedById], references: [id])
+
+  acknowledgedAt      DateTime?
+  acknowledgementNote String?
+
+  /// Computed from submitted assignments at release time; see docs/SCORING.md
+  finalScore      Float?
+  finalScoreJson  String?
+  /// Human calibration override. Never overwrites finalScore.
+  calibratedScore Float?
+  calibrationNote String?
+  calibratedById  String?
+  calibratedAt    DateTime?
+
+  assignments        ReviewAssignment[]
+  approvals          ReviewApproval[]
+  goalSnapshots      ReviewGoalSnapshot[]
+  calibrationEntries CalibrationEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, employeeId])
+  @@index([cycleId, status])
+  @@index([employeeId])
+  @@index([managerIdSnapshot])
+  @@map("cycle_participants")
+}
+
+model ReviewAssignment {
+  id            String           @id @default(cuid())
+  participantId String
+  participant   CycleParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  reviewerEmployeeId String
+  reviewer           Employee @relation("AssignmentReviewer", fields: [reviewerEmployeeId], references: [id], onDelete: Cascade)
+
+  /// SELF | MANAGER | PEER | SKIP_LEVEL | UPWARD
+  kind String
+
+  templateVersionId String
+  templateVersion   ReviewTemplateVersion @relation(fields: [templateVersionId], references: [id])
+
+  /// NOT_STARTED | DRAFT | SUBMITTED | REOPENED | DECLINED | CANCELLED
+  status String @default("NOT_STARTED")
+
+  dueAt       DateTime?
+  lastSavedAt DateTime?
+  submittedAt DateTime?
+
+  reopenedAt      DateTime?
+  reopenedById    String?
+  reopenedBy      Employee? @relation("AssignmentReopenedBy", fields: [reopenedById], references: [id])
+  reopenReason    String?
+  submissionCount Int       @default(0)
+
+  /// Score computed at submit; see docs/SCORING.md. Null when not scoreable.
+  score     Float?
+  scoreJson String?
+
+  declineReason String?
+
+  responses ReviewResponse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([participantId, reviewerEmployeeId, kind])
+  @@index([reviewerEmployeeId, status])
+  @@index([participantId])
+  @@map("review_assignments")
+}
+
+model ReviewResponse {
+  id           String           @id @default(cuid())
+  assignmentId String
+  assignment   ReviewAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  questionId String
+  question   TemplateQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  /// Discriminator for repeated questions (goal id / competency id), '' when single.
+  subjectKey String @default("")
+
+  textValue     String?
+  numericValue  Float?
+  /// JSON array for MULTI_SELECT
+  choiceJson    String?
+  commentValue  String?
+  notApplicable Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([assignmentId, questionId, subjectKey])
+  @@index([assignmentId])
+  @@map("review_responses")
+}
+
+model ReviewApproval {
+  id            String           @id @default(cuid())
+  participantId String
+  participant   CycleParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  approverEmployeeId String
+  approver           Employee @relation(fields: [approverEmployeeId], references: [id], onDelete: Cascade)
+
+  /// PENDING | APPROVED | CHANGES_REQUESTED
+  status String  @default("PENDING")
+  note   String?
+
+  requestedAt DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([participantId])
+  @@index([approverEmployeeId, status])
+  @@map("review_approvals")
+}
+
+/// Frozen copy of the goal facts used by a finalized review.
+model ReviewGoalSnapshot {
+  id            String           @id @default(cuid())
+  participantId String
+  participant   CycleParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  goalId           String?
+  titleSnapshot    String
+  statusSnapshot   String
+  healthSnapshot   String?
+  progressSnapshot Float?
+  targetSnapshot   String?
+  dueDateSnapshot  DateTime?
+  capturedAt       DateTime  @default(now())
+
+  @@index([participantId])
+  @@map("review_goal_snapshots")
+}
+
+// ===========================================================================
+// GOALS
+// ===========================================================================
+
+model Goal {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  outcome     String? // intended outcome / definition of done
+  category    String? // Safety | Quality | Schedule | Growth | Development | Client
+
+  /// INDIVIDUAL | TEAM | COMPANY
+  scope String @default("INDIVIDUAL")
+
+  ownerEmployeeId String?
+  owner           Employee?   @relation("GoalOwner", fields: [ownerEmployeeId], references: [id])
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+
+  parentGoalId String?
+  parentGoal   Goal?   @relation("GoalTree", fields: [parentGoalId], references: [id])
+  childGoals   Goal[]  @relation("GoalTree")
+
+  startDate DateTime?
+  dueDate   DateTime?
+
+  /// NOT_STARTED | IN_PROGRESS | COMPLETED | CANCELLED
+  status String @default("NOT_STARTED")
+  /// ON_TRACK | AT_RISK | OFF_TRACK | BLOCKED
+  health String @default("ON_TRACK")
+
+  /// PRIVATE | MANAGER_CHAIN | DEPARTMENT | ORGANIZATION
+  visibility String @default("MANAGER_CHAIN")
+
+  /// PERCENT | NUMERIC | MILESTONE | BINARY
+  measurementType String  @default("PERCENT")
+  startValue      Float?
+  targetValue     Float?
+  currentValue    Float?
+  unit            String?
+  higherIsBetter  Boolean @default(true)
+
+  /// Owner-reported percentage (0-100). Distinct from computed progress.
+  reportedProgressPct Float?
+  weight              Float  @default(1)
+
+  completedAt DateTime?
+  closedNote  String?
+  isDemoData  Boolean   @default(false)
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  collaborators    GoalCollaborator[]
+  milestones       GoalMilestone[]
+  updates          GoalUpdate[]
+  comments         GoalComment[]
+  agendaItems      AgendaItem[]
+  actionItems      ActionItem[]
+  feedbackItems    Feedback[]
+  feedbackRequests FeedbackRequest[]
+
+  @@index([orgId, scope, status])
+  @@index([ownerEmployeeId])
+  @@index([departmentId])
+  @@index([parentGoalId])
+  @@map("goals")
+}
+
+model GoalCollaborator {
+  id         String   @id @default(cuid())
+  goalId     String
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /// COLLABORATOR (can update) | VIEWER (read only)
+  role       String   @default("COLLABORATOR")
+  addedAt    DateTime @default(now())
+
+  @@unique([goalId, employeeId])
+  @@map("goal_collaborators")
+}
+
+model GoalMilestone {
+  id     String @id @default(cuid())
+  goalId String
+  goal   Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  title       String
+  dueDate     DateTime?
+  completedAt DateTime?
+  weight      Float     @default(1)
+  sortOrder   Int       @default(0)
+
+  @@index([goalId, sortOrder])
+  @@map("goal_milestones")
+}
+
+model GoalUpdate {
+  id     String @id @default(cuid())
+  goalId String
+  goal   Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  authorEmployeeId String
+  author           Employee @relation(fields: [authorEmployeeId], references: [id], onDelete: Cascade)
+
+  body                String?
+  valueAtUpdate       Float?
+  reportedProgressPct Float?
+  statusAtUpdate      String?
+  healthAtUpdate      String?
+  /// Snapshot of the computed progress at the time of the update.
+  computedProgressPct Float?
+
+  createdAt DateTime @default(now())
+
+  @@index([goalId, createdAt])
+  @@map("goal_updates")
+}
+
+model GoalComment {
+  id     String @id @default(cuid())
+  goalId String
+  goal   Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  authorEmployeeId String
+  author           Employee @relation(fields: [authorEmployeeId], references: [id], onDelete: Cascade)
+  body             String
+  createdAt        DateTime @default(now())
+
+  @@index([goalId, createdAt])
+  @@map("goal_comments")
+}
+
+// ===========================================================================
+// CONTINUOUS FEEDBACK / RECOGNITION
+// ===========================================================================
+
+model RecognitionValue {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  icon        String  @default("award")
+  colorHex    String  @default("#e07a1f")
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  feedbackItems Feedback[]
+
+  @@unique([orgId, name])
+  @@map("recognition_values")
+}
+
+model FeedbackRequest {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  requesterEmployeeId String
+  requester           Employee @relation("FeedbackRequester", fields: [requesterEmployeeId], references: [id], onDelete: Cascade)
+  /// Who is being asked to write feedback.
+  responderEmployeeId String
+  responder           Employee @relation("FeedbackResponder", fields: [responderEmployeeId], references: [id], onDelete: Cascade)
+  /// Who the feedback is about.
+  aboutEmployeeId     String
+  about               Employee @relation("FeedbackRequestAbout", fields: [aboutEmployeeId], references: [id], onDelete: Cascade)
+
+  message String?
+  dueAt   DateTime?
+  /// PENDING | COMPLETED | DECLINED | CANCELLED
+  status  String    @default("PENDING")
+
+  competencyId String?
+  competency   Competency? @relation(fields: [competencyId], references: [id])
+  goalId       String?
+  goal         Goal?       @relation(fields: [goalId], references: [id])
+  projectTag   String?
+
+  /// Visibility the response will take (pre-declared so the writer knows the audience).
+  responseVisibility       String @default("RECIPIENT_AND_MANAGER")
+  responseAuthorVisibility String @default("NAMED")
+
+  completedAt DateTime?
+  isDemoData  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  responses Feedback[]
+
+  @@index([responderEmployeeId, status])
+  @@index([aboutEmployeeId])
+  @@map("feedback_requests")
+}
+
+model Feedback {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  /// Null only when authorVisibility = ANONYMOUS (identity intentionally not stored).
+  authorEmployeeId String?
+  author           Employee? @relation("FeedbackAuthor", fields: [authorEmployeeId], references: [id])
+
+  aboutEmployeeId String
+  about           Employee @relation("FeedbackAbout", fields: [aboutEmployeeId], references: [id], onDelete: Cascade)
+
+  /// RECOGNITION | CONSTRUCTIVE | GENERAL | REQUEST_RESPONSE | PRIVATE_NOTE
+  kind String @default("GENERAL")
+  body String
+
+  /// PRIVATE_NOTE_SELF | RECIPIENT_ONLY | RECIPIENT_AND_MANAGER | MANAGER_ONLY | HR_ONLY | DEPARTMENT | ORGANIZATION
+  visibility       String @default("RECIPIENT_AND_MANAGER")
+  /// NAMED | CONFIDENTIAL | ANONYMOUS - see docs/PRIVACY.md for the exact difference
+  authorVisibility String @default("NAMED")
+
+  competencyId String?
+  competency   Competency? @relation(fields: [competencyId], references: [id])
+  goalId       String?
+  goal         Goal?       @relation(fields: [goalId], references: [id])
+  projectTag   String?
+
+  recognitionValueId String?
+  recognitionValue   RecognitionValue? @relation(fields: [recognitionValueId], references: [id])
+
+  requestId String?
+  request   FeedbackRequest? @relation(fields: [requestId], references: [id])
+
+  /// Set when the feedback was collected inside a review cycle assignment.
+  sourceCycleId String?
+
+  isDemoData Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([aboutEmployeeId, createdAt])
+  @@index([authorEmployeeId])
+  @@index([orgId, kind])
+  @@map("feedback")
+}
+
+// ===========================================================================
+// MEETINGS (1:1s)
+// ===========================================================================
+
+model MeetingSeries {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  title   String
+  /// WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | NONE
+  cadence String @default("BIWEEKLY")
+
+  personAId String
+  personA   Employee @relation("SeriesPersonA", fields: [personAId], references: [id], onDelete: Cascade)
+  personBId String
+  personB   Employee @relation("SeriesPersonB", fields: [personBId], references: [id], onDelete: Cascade)
+
+  active     Boolean   @default(true)
+  nextDueAt  DateTime?
+  isDemoData Boolean   @default(false)
+
+  meetings Meeting[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([personAId])
+  @@index([personBId])
+  @@map("meeting_series")
+}
+
+model Meeting {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  seriesId String?
+  series   MeetingSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+
+  title           String
+  scheduledAt     DateTime
+  durationMinutes Int       @default(30)
+  location        String?
+  /// SCHEDULED | COMPLETED | CANCELLED
+  status          String    @default("SCHEDULED")
+  completedAt     DateTime?
+  createdById     String?
+  isDemoData      Boolean   @default(false)
+
+  participants MeetingParticipant[]
+  agendaItems  AgendaItem[]
+  notes        MeetingNote[]
+  actionItems  ActionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, scheduledAt])
+  @@index([seriesId])
+  @@map("meetings")
+}
+
+model MeetingParticipant {
+  id         String   @id @default(cuid())
+  meetingId  String
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /// ORGANIZER | ATTENDEE
+  role       String   @default("ATTENDEE")
+  attended   Boolean?
+
+  @@unique([meetingId, employeeId])
+  @@map("meeting_participants")
+}
+
+model AgendaItem {
+  id        String  @id @default(cuid())
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  title     String
+  notes     String?
+  sortOrder Int     @default(0)
+  /// OPEN | DISCUSSED | CARRIED_FORWARD
+  status    String  @default("OPEN")
+
+  createdByEmployeeId String
+  createdBy           Employee @relation(fields: [createdByEmployeeId], references: [id], onDelete: Cascade)
+
+  goalId String?
+  goal   Goal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  /// Set when this item was carried forward from a previous meeting.
+  carriedFromId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([meetingId, sortOrder])
+  @@map("agenda_items")
+}
+
+model MeetingNote {
+  id        String  @id @default(cuid())
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  authorEmployeeId String
+  author           Employee @relation(fields: [authorEmployeeId], references: [id], onDelete: Cascade)
+
+  body       String
+  /// SHARED (both participants) | PRIVATE (author only, never released or exported)
+  visibility String @default("SHARED")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([meetingId])
+  @@map("meeting_notes")
+}
+
+model ActionItem {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+
+  ownerEmployeeId      String
+  owner                Employee  @relation("ActionOwner", fields: [ownerEmployeeId], references: [id], onDelete: Cascade)
+  assignedByEmployeeId String?
+  assignedBy           Employee? @relation("ActionAssigner", fields: [assignedByEmployeeId], references: [id])
+
+  dueDate     DateTime?
+  /// OPEN | IN_PROGRESS | COMPLETED | CANCELLED
+  status      String    @default("OPEN")
+  completedAt DateTime?
+
+  meetingId         String?
+  meeting           Meeting?         @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  goalId            String?
+  goal              Goal?            @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  developmentPlanId String?
+  developmentPlan   DevelopmentPlan? @relation(fields: [developmentPlanId], references: [id], onDelete: SetNull)
+  surveyId          String?
+  survey            Survey?          @relation(fields: [surveyId], references: [id], onDelete: SetNull)
+
+  /// PARTICIPANTS | OWNER_AND_MANAGER | HR_RESTRICTED
+  visibility String @default("PARTICIPANTS")
+
+  carriedFromId String?
+  isDemoData    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerEmployeeId, status])
+  @@index([orgId, dueDate])
+  @@map("action_items")
+}
+
+// ===========================================================================
+// SURVEYS / ENGAGEMENT
+// ===========================================================================
+
+model Survey {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  introText   String?
+
+  /// NAMED | ANONYMOUS - fixed at launch, cannot be changed afterwards
+  mode   String @default("ANONYMOUS")
+  /// DRAFT | SCHEDULED | OPEN | CLOSED | ARCHIVED
+  status String @default("DRAFT")
+
+  opensAt        DateTime?
+  closesAt       DateTime?
+  launchedAt     DateTime?
+  closedAtActual DateTime?
+
+  /// Minimum responses before any results are shown. Copied from org at create.
+  minResponsesForResults Int     @default(5)
+  remindersEnabled       Boolean @default(true)
+  /// Capture coarse department on the response record for breakdowns (suppressed below threshold).
+  collectDepartment      Boolean @default(true)
+  /// Capture coarse tenure band for breakdowns.
+  collectTenureBand      Boolean @default(true)
+
+  createdById String?
+  isDemoData  Boolean @default(false)
+
+  questions   SurveyQuestion[]
+  audience    SurveyAudienceRule[]
+  invitations SurveyInvitation[]
+  responses   SurveyResponse[]
+  actionItems ActionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, status])
+  @@map("surveys")
+}
+
+model SurveyQuestion {
+  id       String @id @default(cuid())
+  surveyId String
+  survey   Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  sortOrder Int     @default(0)
+  /// RATING | MULTIPLE_CHOICE | MULTI_SELECT | TEXT | NPS
+  type      String
+  prompt    String
+  helpText  String?
+  required  Boolean @default(false)
+
+  ratingScaleId String?
+  ratingScale   RatingScale? @relation(fields: [ratingScaleId], references: [id])
+  choicesJson   String?
+
+  /// Engagement factor this question rolls up to.
+  factor String?
+
+  answers SurveyAnswer[]
+
+  @@index([surveyId, sortOrder])
+  @@map("survey_questions")
+}
+
+model SurveyAudienceRule {
+  id       String  @id @default(cuid())
+  surveyId String
+  survey   Survey  @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  /// ALL | DEPARTMENT | JOB_TITLE | MANAGER_TREE | EMPLOYEE | LOCATION
+  ruleType String
+  value    String?
+
+  @@map("survey_audience_rules")
+}
+
+/// Participation tracking. For ANONYMOUS surveys this is the ONLY place an
+/// employee identity is recorded; it carries no pointer to a SurveyResponse.
+model SurveyInvitation {
+  id       String @id @default(cuid())
+  surveyId String
+  survey   Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  /// PENDING | NOTIFIED | COMPLETED | DECLINED
+  status        String    @default("PENDING")
+  notifiedAt    DateTime?
+  remindedAt    DateTime?
+  reminderCount Int       @default(0)
+  completedAt   DateTime?
+
+  /// Coarse bands captured at invite time so reporting never needs the identity.
+  departmentNameSnapshot String?
+  tenureBandSnapshot     String?
+  locationSnapshot       String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([surveyId, employeeId])
+  @@index([surveyId, status])
+  @@map("survey_invitations")
+}
+
+/// Submitted answers. respondentEmployeeId is ALWAYS null for ANONYMOUS surveys.
+model SurveyResponse {
+  id       String @id @default(cuid())
+  surveyId String
+  survey   Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  respondentEmployeeId String?
+  respondent           Employee? @relation("SurveyRespondent", fields: [respondentEmployeeId], references: [id], onDelete: SetNull)
+
+  /// Coarse, non-identifying segment labels copied from the invitation.
+  departmentNameSnapshot String?
+  tenureBandSnapshot     String?
+  locationSnapshot       String?
+
+  submittedAt DateTime @default(now())
+
+  answers SurveyAnswer[]
+
+  @@index([surveyId])
+  @@map("survey_responses")
+}
+
+model SurveyAnswer {
+  id         String         @id @default(cuid())
+  responseId String
+  response   SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId String
+  question   SurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  numericValue Float?
+  textValue    String?
+  choiceJson   String?
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
+  @@map("survey_answers")
+}
+
+// ===========================================================================
+// DEVELOPMENT / IMPROVEMENT PLANS
+// ===========================================================================
+
+model DevelopmentPlan {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation("PlanEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  /// DEVELOPMENT | PERFORMANCE_IMPROVEMENT
+  planType    String  @default("DEVELOPMENT")
+  /// DRAFT | ACTIVE | COMPLETED | CANCELLED
+  status      String  @default("DRAFT")
+
+  startDate  DateTime?
+  targetDate DateTime?
+  closedAt   DateTime?
+  outcome    String?
+
+  /// PIPs default to restricted: employee + their manager chain + HR only.
+  hrRestricted Boolean @default(false)
+
+  createdById String?
+  isDemoData  Boolean @default(false)
+
+  actions     DevelopmentAction[]
+  checkIns    PlanCheckIn[]
+  actionItems ActionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, status])
+  @@index([orgId, planType])
+  @@map("development_plans")
+}
+
+model DevelopmentAction {
+  id     String          @id @default(cuid())
+  planId String
+  plan   DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  /// ACTION | MILESTONE
+  itemType    String  @default("ACTION")
+
+  ownerEmployeeId String?
+  owner           Employee? @relation("DevActionOwner", fields: [ownerEmployeeId], references: [id])
+
+  competencyId String?
+  competency   Competency? @relation(fields: [competencyId], references: [id])
+
+  dueDate     DateTime?
+  /// OPEN | IN_PROGRESS | COMPLETED | CANCELLED
+  status      String    @default("OPEN")
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+
+  @@index([planId, sortOrder])
+  @@map("development_actions")
+}
+
+model PlanCheckIn {
+  id     String          @id @default(cuid())
+  planId String
+  plan   DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  authorEmployeeId String
+  author           Employee @relation(fields: [authorEmployeeId], references: [id], onDelete: Cascade)
+  body             String
+  createdAt        DateTime @default(now())
+
+  @@index([planId, createdAt])
+  @@map("plan_check_ins")
+}
+
+// ===========================================================================
+// CALIBRATION
+// ===========================================================================
+
+model CalibrationSession {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  cycleId String
+  cycle   ReviewCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  name   String
+  /// DRAFT | IN_PROGRESS | FINALIZED
+  status String  @default("DRAFT")
+  notes  String?
+
+  facilitatorEmployeeId String?
+  facilitator           Employee? @relation("CalibrationFacilitator", fields: [facilitatorEmployeeId], references: [id])
+
+  finalizedAt DateTime?
+  entries     CalibrationEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cycleId])
+  @@map("calibration_sessions")
+}
+
+model CalibrationEntry {
+  id        String             @id @default(cuid())
+  sessionId String
+  session   CalibrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  participantId String
+  participant   CycleParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  /// Score as computed before calibration; frozen for the audit trail.
+  originalScore Float?
+  proposedScore Float?
+  finalScore    Float?
+  rationale     String?
+
+  decidedByEmployeeId String?
+  decidedBy           Employee? @relation("CalibrationDecidedBy", fields: [decidedByEmployeeId], references: [id])
+  decidedAt           DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, participantId])
+  @@map("calibration_entries")
+}
+
+// ===========================================================================
+// NOTIFICATIONS / EMAIL / JOBS / AUDIT / FILES / AI / IMPORT
+// ===========================================================================
+
+model Notification {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  recipientEmployeeId String
+  recipient           Employee @relation(fields: [recipientEmployeeId], references: [id], onDelete: Cascade)
+
+  type     String // review.assigned | review.due | review.released | goal.comment | ...
+  title    String
+  body     String?
+  linkUrl  String?
+  severity String  @default("info") // info | warning | urgent
+
+  readAt    DateTime?
+  /// Prevents duplicate notifications for the same event.
+  dedupeKey String?
+  createdAt DateTime  @default(now())
+
+  @@unique([recipientEmployeeId, dedupeKey])
+  @@index([recipientEmployeeId, readAt])
+  @@map("notifications")
+}
+
+/// Development outbox. With emailProvider=outbox nothing leaves the machine;
+/// messages are viewable at /admin/outbox.
+model EmailMessage {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  toEmail  String
+  toName   String?
+  subject  String
+  textBody String
+  htmlBody String?
+
+  /// QUEUED | SENT | FAILED | SUPPRESSED
+  status   String  @default("QUEUED")
+  provider String  @default("outbox")
+  error    String?
+
+  relatedType String?
+  relatedId   String?
+  dedupeKey   String? @unique
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  @@index([orgId, status])
+  @@map("email_messages")
+}
+
+model ScheduledJob {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  kind        String // cycle.launch | review.reminder | survey.open | survey.close | survey.reminder | meeting.rollforward
+  runAt       DateTime
+  payloadJson String?
+  /// PENDING | RUNNING | DONE | FAILED | CANCELLED
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  lastError   String?
+  lockedAt    DateTime?
+  completedAt DateTime?
+  /// Idempotency key so a retried runner cannot double-send.
+  dedupeKey   String?   @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([status, runAt])
+  @@map("scheduled_jobs")
+}
+
+model AuditEvent {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  actorUserId     String?
+  actorUser       User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorEmployeeId String?
+  actorEmployee   Employee? @relation(fields: [actorEmployeeId], references: [id], onDelete: SetNull)
+  actorLabel      String? // preserved even if the account is later removed
+
+  action       String // review.submitted | review.released | survey.launched | employee.deactivated | ...
+  entityType   String
+  entityId     String
+  summary      String
+  metadataJson String?
+
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorEmployeeId])
+  @@map("audit_events")
+}
+
+model Attachment {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  ownerType String // review_assignment | goal | development_plan | meeting | employee
+  ownerId   String
+
+  filename   String
+  mimeType   String
+  sizeBytes  Int
+  /// Opaque key under STORAGE_DIR. Files are never served from /public.
+  storageKey String  @unique
+  checksum   String?
+
+  uploadedByEmployeeId String?
+  uploadedBy           Employee? @relation(fields: [uploadedByEmployeeId], references: [id], onDelete: SetNull)
+
+  /// Inherits the owning record's visibility; see docs/PERMISSIONS.md
+  visibility String @default("INHERIT")
+
+  createdAt DateTime @default(now())
+
+  @@index([ownerType, ownerId])
+  @@map("attachments")
+}
+
+/// Optional AI assistance. Every suggestion is stored, labelled, and must be
+/// accepted or edited by a person; the original human text is never replaced.
+model AiSuggestion {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  kind        String // review_question | feedback_clarity | review_summary | goal_wording | meeting_summary
+  contextType String
+  contextId   String
+
+  requestedByEmployeeId String?
+  requestedBy           Employee? @relation(fields: [requestedByEmployeeId], references: [id], onDelete: SetNull)
+
+  provider       String  @default("mock")
+  model          String?
+  promptSummary  String
+  /// Hash of the assembled context, so an audit can prove what was and was not sent.
+  contextDigest  String?
+  suggestionText String
+
+  /// SUGGESTED | ACCEPTED | EDITED | DISCARDED
+  status       String    @default("SUGGESTED")
+  acceptedText String?
+  decidedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([orgId, kind])
+  @@index([contextType, contextId])
+  @@map("ai_suggestions")
+}
+
+/// CSV employee import: staged, validated, previewed, then committed.
+model ImportBatch {
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  filename String
+  /// PENDING_MAPPING | VALIDATED | COMMITTED | CANCELLED
+  status   String @default("PENDING_MAPPING")
+  kind     String @default("employees")
+
+  mappingJson String?
+  rawRowsJson String // staged parsed rows, discarded after commit or cancel
+  reportJson  String? // validation + commit report
+
+  rowCount     Int @default(0)
+  createdCount Int @default(0)
+  updatedCount Int @default(0)
+  errorCount   Int @default(0)
+  skippedCount Int @default(0)
+
+  createdById String?
+  createdAt   DateTime  @default(now())
+  committedAt DateTime?
+
+  @@index([orgId, status])
+  @@map("import_batches")
+}

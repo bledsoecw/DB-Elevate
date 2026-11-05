@@ -1,0 +1,30 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment / secrets  -- never commit
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local database + private file storage
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal
+/storage/attachments/*
+!/storage/attachments/.gitkeep
+
+# Test + tooling output
+coverage/
+test-results/
+/tmp-screenshots/
+playwright-report/
+.vitest/
+.DS_Store
+*.log
