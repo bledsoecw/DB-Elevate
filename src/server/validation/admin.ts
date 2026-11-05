@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import {
   APPROVAL_AUTHORITIES,
+  COMPETENCY_LEVELS,
   PEER_VISIBILITY_MODES,
+  PLAN_STATUSES,
+  PLAN_TYPES,
   QUESTION_TYPES,
   RELEASE_MODES,
   REVIEWER_KINDS,
@@ -107,6 +110,141 @@ export const OrgSettingsSchema = z.object({
   aiProvider: z.enum(['none', 'mock', 'anthropic', 'openai', 'azure-openai']).optional(),
   aiModel: z.string().trim().max(120).nullable().optional(),
   aiMonthlyCallBudget: z.number().int().min(0).max(1000000).optional(),
+});
+
+// --- Catalogue: competencies, libraries, scales, recognition ---------------
+
+export const CompetencyBehaviorSchema = z.object({
+  level: z.enum(COMPETENCY_LEVELS),
+  descriptor: z.string().trim().min(1, 'Describe what this level looks like.').max(1000),
+});
+
+export const CompetencySchema = z.object({
+  name: z.string().trim().min(2, 'Give the competency a name.').max(120),
+  description: z.string().trim().max(1000).nullable().optional(),
+  category: z.string().trim().max(60).nullable().optional(),
+  active: z.boolean().optional(),
+  /** Behavioural descriptors by career level. A competency may define none. */
+  behaviors: z.array(CompetencyBehaviorSchema).max(COMPETENCY_LEVELS.length).optional(),
+});
+
+export const CompetencyPatchSchema = CompetencySchema.partial();
+
+export const LibraryItemSchema = z.object({
+  competencyId: Id,
+  weight: z.number().min(0).max(100).optional(),
+});
+
+export const CompetencyLibrarySchema = z.object({
+  name: z.string().trim().min(2, 'Give the library a name.').max(120),
+  description: z.string().trim().max(1000).nullable().optional(),
+  active: z.boolean().optional(),
+  items: z.array(LibraryItemSchema).max(60).optional(),
+  /** Job titles this library is the default competency set for. */
+  jobTitleIds: z.array(Id).max(200).optional(),
+});
+
+export const CompetencyLibraryPatchSchema = CompetencyLibrarySchema.partial();
+
+export const RatingScaleLevelSchema = z.object({
+  value: z.number().int().min(0).max(100),
+  label: z.string().trim().min(1, 'Every level needs a label.').max(120),
+  description: z.string().trim().max(1000).nullable().optional(),
+});
+
+export const RatingScaleSchema = z.object({
+  name: z.string().trim().min(2, 'Give the scale a name.').max(120),
+  description: z.string().trim().max(1000).nullable().optional(),
+  numeric: z.boolean(),
+  levels: z
+    .array(RatingScaleLevelSchema)
+    .min(2, 'A scale needs at least two levels.')
+    .max(11, 'A scale of more than eleven levels is not usefully distinguishable.'),
+});
+
+export const RatingScalePatchSchema = RatingScaleSchema.partial().extend({
+  archived: z.boolean().optional(),
+});
+
+export const RecognitionValueSchema = z.object({
+  name: z.string().trim().min(2, 'Give the value a name.').max(80),
+  description: z.string().trim().max(500).nullable().optional(),
+  icon: z.string().trim().max(40).optional(),
+  colorHex: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex colour.')
+    .optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+});
+
+export const RecognitionValuePatchSchema = RecognitionValueSchema.partial();
+
+// --- Development plans ------------------------------------------------------
+
+export const PlanActionSchema = z.object({
+  id: Id.optional(),
+  title: z.string().trim().min(1, 'Describe the action.').max(300),
+  description: z.string().trim().max(2000).nullable().optional(),
+  itemType: z.enum(['ACTION', 'MILESTONE']).optional(),
+  ownerEmployeeId: Id.nullable().optional(),
+  competencyId: Id.nullable().optional(),
+  dueDate: IsoDate.nullable().optional(),
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+});
+
+export const DevelopmentPlanSchema = z.object({
+  employeeId: Id,
+  title: z.string().trim().min(3, 'Give the plan a title.').max(200),
+  description: z.string().trim().max(4000).nullable().optional(),
+  planType: z.enum(PLAN_TYPES),
+  startDate: IsoDate.nullable().optional(),
+  targetDate: IsoDate.nullable().optional(),
+  /**
+   * A performance improvement plan is restricted by default. The flag is
+   * accepted but `createPlan` forces it true for PERFORMANCE_IMPROVEMENT so a
+   * mis-set client can never widen access to one.
+   */
+  hrRestricted: z.boolean().optional(),
+  actions: z.array(PlanActionSchema).max(40).optional(),
+});
+
+export const DevelopmentPlanPatchSchema = DevelopmentPlanSchema.partial()
+  .omit({ employeeId: true })
+  .extend({
+    status: z.enum(PLAN_STATUSES).optional(),
+    outcome: z.string().trim().max(4000).nullable().optional(),
+  });
+
+export const PlanCheckInSchema = z.object({
+  body: z.string().trim().min(1, 'Write the check-in note.').max(4000),
+});
+
+// --- Calibration ------------------------------------------------------------
+
+export const CalibrationSessionSchema = z.object({
+  cycleId: Id,
+  name: z.string().trim().min(3, 'Name the session.').max(200),
+  notes: z.string().trim().max(4000).nullable().optional(),
+  facilitatorEmployeeId: Id.nullable().optional(),
+  participantIds: z.array(Id).max(500).optional(),
+});
+
+export const CalibrationEntrySchema = z.object({
+  participantId: Id,
+  proposedScore: z.number().min(0).max(100).nullable().optional(),
+  rationale: z.string().trim().max(2000).nullable().optional(),
+});
+
+export const CalibrationDecisionSchema = z.object({
+  participantId: Id,
+  finalScore: z.number().min(0).max(100).nullable(),
+  rationale: z
+    .string()
+    .trim()
+    .min(10, 'Record why the score was changed — at least 10 characters.')
+    .max(2000),
 });
 
 export const RoleGrantSchema = z.object({

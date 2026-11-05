@@ -32,6 +32,16 @@ export const AUDIT_ACTIONS = {
   USER_INVITED: 'user.invited',
   USER_STATUS_CHANGED: 'user.status.changed',
 
+  // Catalogue (competencies, libraries, scales, recognition values)
+  COMPETENCY_CREATED: 'competency.created',
+  COMPETENCY_UPDATED: 'competency.updated',
+  LIBRARY_CREATED: 'competency.library.created',
+  LIBRARY_UPDATED: 'competency.library.updated',
+  SCALE_CREATED: 'rating_scale.created',
+  SCALE_UPDATED: 'rating_scale.updated',
+  RECOGNITION_CREATED: 'recognition_value.created',
+  RECOGNITION_UPDATED: 'recognition_value.updated',
+
   // Templates
   TEMPLATE_CREATED: 'template.created',
   TEMPLATE_UPDATED: 'template.updated',

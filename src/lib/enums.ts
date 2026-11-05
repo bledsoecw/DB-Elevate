@@ -365,6 +365,33 @@ export const ENGAGEMENT_FACTORS = [
   'Workload & Schedule',
 ] as const;
 
+// --- Competencies ----------------------------------------------------------
+
+/**
+ * Career levels a competency can carry a behavioural descriptor for. These are
+ * the rungs a construction and remodeling company actually uses; they are
+ * ordered, and the order is what the library editor renders.
+ */
+export const COMPETENCY_LEVELS = [
+  'Apprentice',
+  'Journeyman',
+  'Lead',
+  'Manager',
+  'Director',
+  'Executive',
+] as const;
+export type CompetencyLevel = (typeof COMPETENCY_LEVELS)[number];
+
+export const COMPETENCY_CATEGORIES = [
+  'Safety',
+  'Craftsmanship',
+  'Client Service',
+  'Leadership',
+  'Planning & Execution',
+  'Commercial',
+  'Teamwork',
+] as const;
+
 // --- Development -----------------------------------------------------------
 
 export const PLAN_TYPES = ['DEVELOPMENT', 'PERFORMANCE_IMPROVEMENT'] as const;
@@ -376,6 +403,12 @@ export const PLAN_TYPE_LABELS: Record<PlanType, string> = {
 
 export const PLAN_STATUSES = ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED'] as const;
 export type PlanStatus = (typeof PLAN_STATUSES)[number];
+export const PLAN_STATUS_LABELS: Record<PlanStatus, string> = {
+  DRAFT: 'Draft',
+  ACTIVE: 'Active',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
 
 export const CALIBRATION_STATUSES = ['DRAFT', 'IN_PROGRESS', 'FINALIZED'] as const;
 export type CalibrationStatus = (typeof CALIBRATION_STATUSES)[number];
