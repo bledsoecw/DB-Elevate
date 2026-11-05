@@ -323,10 +323,23 @@ export async function runReviewWorkflow({ browser, runner }: Ctx): Promise<void>
       { timeout: 15000 },
     );
     await button.click();
-    // The form only renders while the review is RELEASED, so its removal is an
-    // unambiguous signal that the acknowledgement was stored.
+    // The form only renders while the review is RELEASED, so its removal is a
+    // necessary signal — but not a sufficient one. On a cold dev server the
+    // route compile can make the POST slow enough that the form has gone while
+    // the write is still in flight, and the next step then sees a second
+    // acknowledgement succeed. So wait for positive evidence instead: the
+    // "Acknowledged" badge, which only the server can render, and then the
+    // stored comment itself.
     await button.waitFor({ state: 'detached', timeout: 25000 });
-    return 'acknowledged';
+    await employee.page.waitForFunction(
+      (expected) => {
+        const body = document.body.innerText;
+        return /Acknowledged/.test(body) && body.includes(expected);
+      },
+      'one point of disagreement',
+      { timeout: 25000 },
+    );
+    return 'acknowledged, and the stored comment is rendered back';
   });
 
   await runner.step('Acknowledging twice is refused', async () => {

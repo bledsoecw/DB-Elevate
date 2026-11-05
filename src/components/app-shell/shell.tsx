@@ -436,7 +436,12 @@ export function AppShell({
               {branding.productName} · {branding.orgName}
             </span>
             <span className="flex gap-4">
-              <Link href="/help/privacy" className="hover:text-slate-700 hover:underline">
+              {/* -my-1 py-1 keeps the tap area comfortable on a phone without
+                  changing how the footer reads on a desktop. */}
+              <Link
+                href="/help/privacy"
+                className="-my-1 inline-flex items-center py-1 hover:text-slate-700 hover:underline"
+              >
                 How your information is used
               </Link>
             </span>

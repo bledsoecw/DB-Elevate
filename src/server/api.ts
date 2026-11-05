@@ -48,16 +48,39 @@ export function errorResponse(e: unknown): NextResponse<ApiErrorBody> {
   );
 }
 
-type Ctx = { params: Promise<Record<string, string>> };
+/**
+ * The context shape Next passes as a route handler's second argument.
+ *
+ * It must be declared non-optional and must allow `string[]`, because
+ * `next build` validates handler signatures against its own `RouteContext` and
+ * is stricter than `tsc --noEmit` on this project's own config. An earlier
+ * version typed it `ctx?: Ctx` with `Record<string, string>`, which typechecked
+ * locally and failed the production build — so a clean `npm run typecheck` is
+ * not sufficient evidence that the app builds.
+ *
+ * A route with no dynamic segment still receives a context whose `params`
+ * resolves to an empty object.
+ */
+type RouteCtx = { params: Promise<Record<string, string | string[]>> };
+
+/** Collapses a catch-all segment to its first value so callers can index it as a string. */
+async function resolveParams(ctx: RouteCtx): Promise<Record<string, string>> {
+  const raw = ctx?.params ? await ctx.params : {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    out[key] = Array.isArray(value) ? (value[0] ?? '') : value;
+  }
+  return out;
+}
 
 /** Wraps an authenticated route handler. */
 export function handler<T>(
   fn: (args: { actor: Actor; request: Request; params: Record<string, string> }) => Promise<T>,
 ) {
-  return async (request: Request, ctx?: Ctx): Promise<NextResponse> => {
+  return async (request: Request, ctx: RouteCtx): Promise<NextResponse> => {
     try {
       const actor = await requireActor();
-      const params = ctx?.params ? await ctx.params : {};
+      const params = await resolveParams(ctx);
       const result = await fn({ actor, request, params });
       if (result instanceof NextResponse) return result;
       return NextResponse.json(result ?? { ok: true });
