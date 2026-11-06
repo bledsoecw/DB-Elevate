@@ -30,7 +30,8 @@
     "setup:blank": "node scripts/setup-env.mjs && npm install && prisma migrate deploy && prisma generate",
     "test:compensation": "SEED_FORCE=1 tsx prisma/seed.ts && node tests/browser/compensation-test.js && node tests/browser/compensation-flow-test.js && SEED_FORCE=1 tsx prisma/seed.ts && node tests/browser/compensation-budget-test.js && SEED_FORCE=1 tsx prisma/seed.ts",
     "test:sso": "node tests/browser/sso-test.js",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build"
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "rename-account": "tsx --conditions=react-server scripts/rename-account.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
