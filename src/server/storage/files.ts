@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { prisma } from '../db';
 
 /**
  * Private file storage.
@@ -17,11 +18,30 @@ import path from 'node:path';
  * user chose never reaches the filesystem, so "../../etc/passwd" is simply
  * stored as a label in the database and never used as a path.
  *
- * Swapping this for object storage means reimplementing the four functions
- * below; nothing else in the application touches the filesystem.
+ * Two drivers, same four functions, and nothing else in the application knows
+ * which is in use:
+ *
+ *  - **database** (the default): the bytes live in a `file_blobs` row. This is
+ *    what makes attachments work on a serverless host, which has no writable
+ *    disk that survives between requests — a file written during an upload is
+ *    simply gone by the time somebody asks for it back. It also means backups
+ *    and restores cover attachments without a second procedure.
+ *  - **filesystem**: the original behaviour, for a self-hosted installation
+ *    with a real disk. Set STORAGE_DRIVER=filesystem.
+ *
+ * The database is the default rather than the fallback so that the path which
+ * runs in production is also the one that runs in development and in the
+ * tests. A driver that is only exercised after deployment is a driver nobody
+ * has tested.
  */
 
 const DEFAULT_DIR = './storage/attachments';
+
+export type StorageDriver = 'database' | 'filesystem';
+
+export function storageDriver(): StorageDriver {
+  return process.env.STORAGE_DRIVER === 'filesystem' ? 'filesystem' : 'database';
+}
 
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
@@ -53,7 +73,13 @@ export function storageRoot(): string {
  * pointing STORAGE_DIR inside ./public, where the web server would hand out
  * every file with no permission check at all.
  */
+/**
+ * Only meaningful for the filesystem driver. With the database driver there is
+ * no directory to point in the wrong place, which removes the footgun rather
+ * than guarding it.
+ */
 export function storageMisconfigured(): string | null {
+  if (storageDriver() === 'database') return null;
   const root = storageRoot();
   const publicDir = path.resolve('./public');
   if (root === publicDir || root.startsWith(publicDir + path.sep)) {
@@ -89,27 +115,52 @@ export interface StoredFile {
 }
 
 export async function writeStoredFile(bytes: Buffer): Promise<StoredFile> {
-  const misconfigured = storageMisconfigured();
-  if (misconfigured) throw new Error(misconfigured);
-
   const storageKey = newStorageKey();
-  const full = resolveKey(storageKey);
-  await mkdir(path.dirname(full), { recursive: true });
-  // Owner-only permissions; nothing else on the host needs to read these.
-  await writeFile(full, bytes, { mode: 0o600 });
-
-  return {
+  const result: StoredFile = {
     storageKey,
     sizeBytes: bytes.byteLength,
     checksum: createHash('sha256').update(bytes).digest('hex'),
   };
+
+  if (storageDriver() === 'database') {
+    await prisma.fileBlob.create({
+      // Prisma's Bytes maps to Uint8Array. A Buffer is one, but TypeScript
+      // cannot prove its backing store is an ArrayBuffer rather than a
+      // SharedArrayBuffer, so this copies. At a 15 MB ceiling, once per
+      // upload, that is not worth an assertion to avoid.
+      data: { storageKey, bytes: Uint8Array.from(bytes), sizeBytes: bytes.byteLength },
+    });
+    return result;
+  }
+
+  const misconfigured = storageMisconfigured();
+  if (misconfigured) throw new Error(misconfigured);
+
+  const full = resolveKey(storageKey);
+  await mkdir(path.dirname(full), { recursive: true });
+  // Owner-only permissions; nothing else on the host needs to read these.
+  await writeFile(full, bytes, { mode: 0o600 });
+  return result;
 }
 
 export async function readStoredFile(storageKey: string): Promise<Buffer> {
+  if (storageDriver() === 'database') {
+    const row = await prisma.fileBlob.findUnique({
+      where: { storageKey },
+      select: { bytes: true },
+    });
+    if (!row) throw new Error('No stored file for that key.');
+    return Buffer.from(row.bytes);
+  }
   return readFile(resolveKey(storageKey));
 }
 
 export async function storedFileExists(storageKey: string): Promise<boolean> {
+  if (storageDriver() === 'database') {
+    // Counts rather than selects: the point is whether it is there, and the
+    // bytes can be fifteen megabytes.
+    return (await prisma.fileBlob.count({ where: { storageKey } })) > 0;
+  }
   try {
     const info = await stat(resolveKey(storageKey));
     return info.isFile();
@@ -119,6 +170,11 @@ export async function storedFileExists(storageKey: string): Promise<boolean> {
 }
 
 export async function deleteStoredFile(storageKey: string): Promise<void> {
+  if (storageDriver() === 'database') {
+    // Already gone is the desired end state, so a missing row is not an error.
+    await prisma.fileBlob.deleteMany({ where: { storageKey } });
+    return;
+  }
   try {
     await unlink(resolveKey(storageKey));
   } catch {

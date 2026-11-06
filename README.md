@@ -241,9 +241,12 @@ Stated plainly, because a feature list that hides these is not useful.
   client and a public https callback — though every rule that decides who may
   sign in is tested against a fake Google. See
   [docs/SSO.md](docs/SSO.md).
-- **SQLite by default.** The schema is Postgres-compatible and uses no SQLite-
-  specific features, but the committed migration is SQLite's. Moving to Postgres
-  means changing the datasource and regenerating migrations.
+- **PostgreSQL is required.** SQLite is no longer supported: the application
+  relies on case-insensitive matching SQLite does not implement, and stores
+  uploaded files as bytes. Development and production run the same engine
+  deliberately — the gap between them was a real, silent bug (search stopped
+  matching anything not capitalised exactly). A free Neon branch is the
+  quickest development database; nothing to install.
 - **Reporting graph held in memory.** The reporting structure is loaded and
   walked in memory, which is far cheaper than recursive queries at this scale
   (hundreds of employees) and would need a recursive CTE at tens of thousands.

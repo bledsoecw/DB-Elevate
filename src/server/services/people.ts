@@ -15,6 +15,7 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit';
 import { revokeAllSessionsForUser } from '../auth/session';
 import { hashPassword } from '../auth/password';
 import { notify } from '../notify';
+import { containsInsensitive, containsInsensitiveNullable } from '../search';
 
 /**
  * People: the employee directory, profiles and employment changes.
@@ -56,12 +57,12 @@ export async function listDirectory(actor: Actor, filters: DirectoryFilters = {}
   if (filters.query) {
     const q = filters.query.trim();
     where.OR = [
-      { firstName: { contains: q } },
-      { lastName: { contains: q } },
-      { preferredName: { contains: q } },
-      { workEmail: { contains: q } },
-      { employeeNumber: { contains: q } },
-      { crew: { contains: q } },
+      { firstName: containsInsensitive(q) },
+      { lastName: containsInsensitive(q) },
+      { preferredName: containsInsensitiveNullable(q) },
+      { workEmail: containsInsensitiveNullable(q) },
+      { employeeNumber: containsInsensitiveNullable(q) },
+      { crew: containsInsensitiveNullable(q) },
     ];
   }
 

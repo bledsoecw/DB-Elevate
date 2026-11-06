@@ -14,6 +14,7 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit';
 import { hashPassword } from '../auth/password';
 import { ROLES, type Role } from '@/lib/enums';
 import type { OrgSettingsSchema } from '../validation/admin';
+import { containsInsensitive, startsWithInsensitive } from '../search';
 
 /**
  * Application administration: organization settings and branding, accounts and
@@ -273,9 +274,9 @@ export async function listAccounts(actor: Actor, search?: string) {
       ...(term
         ? {
             OR: [
-              { email: { contains: term } },
-              { employee: { firstName: { contains: term } } },
-              { employee: { lastName: { contains: term } } },
+              { email: containsInsensitive(term) },
+              { employee: { firstName: containsInsensitive(term) } },
+              { employee: { lastName: containsInsensitive(term) } },
             ],
           }
         : {}),
@@ -581,7 +582,7 @@ export async function listAuditEvents(actor: Actor, filters: AuditFilters = {}) 
   const events = await prisma.auditEvent.findMany({
     where: {
       orgId: actor.orgId,
-      ...(filters.action ? { action: { startsWith: filters.action } } : {}),
+      ...(filters.action ? { action: startsWithInsensitive(filters.action) } : {}),
       ...(filters.entityType ? { entityType: filters.entityType } : {}),
       ...(filters.actorEmployeeId ? { actorEmployeeId: filters.actorEmployeeId } : {}),
       ...(filters.from || filters.to

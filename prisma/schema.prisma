@@ -15,8 +15,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  // Pooled connection, used for every query. A serverless deployment opens a
+  // connection per invocation, and Postgres runs out of them long before the
+  // application runs out of traffic — the pooler is what stops a busy Monday
+  // morning from becoming "too many clients already".
+  url       = env("DATABASE_URL")
+  // Unpooled, used only by `prisma migrate`. Migrations take advisory locks
+  // and run DDL, neither of which survives a transaction pooler.
+  directUrl = env("DIRECT_URL")
 }
 
 // ===========================================================================
@@ -1865,4 +1872,26 @@ model CompensationParticipant {
   @@index([cycleId, status])
   @@index([managerIdSnapshot])
   @@map("compensation_participants")
+}
+
+
+/// The bytes of an uploaded file, when the database storage driver is in use.
+///
+/// Kept in its own table rather than on Attachment so that listing or checking
+/// permissions on an attachment never drags its contents into memory — those
+/// queries select from `attachments` and touch this table only on download.
+///
+/// Why the database at all: a serverless host has no writable disk that
+/// survives between requests, so a file written during an upload is gone by
+/// the time anybody asks for it. Object storage is the other answer and is a
+/// metered service; at this scale, with a 15 MB ceiling per file and a few
+/// evidence documents per review, the database is simpler and costs nothing.
+/// See docs/DEPLOYMENT.md for when that stops being true.
+model FileBlob {
+  storageKey String   @id
+  bytes      Bytes
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
+
+  @@map("file_blobs")
 }

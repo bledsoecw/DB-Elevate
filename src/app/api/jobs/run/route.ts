@@ -7,6 +7,9 @@ import { runJobs } from '@/server/jobs/runner';
  * webhook rather than a shell.
  *
  *   curl -X POST https://host/api/jobs/run -H "Authorization: Bearer $JOBS_TOKEN"
+
+ * Vercel Cron calls the same route with GET and its own CRON_SECRET; see
+ * vercel.json.
  *
  * Three deliberate properties:
  *
@@ -34,7 +37,13 @@ function tokenMatches(provided: string, expected: string): boolean {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
-  const expected = process.env.JOBS_TOKEN;
+  return runFromRequest(request);
+}
+
+async function runFromRequest(request: Request): Promise<NextResponse> {
+  // Either secret is accepted: JOBS_TOKEN for an external scheduler, and
+  // CRON_SECRET for Vercel's, which the platform injects itself.
+  const expected = process.env.JOBS_TOKEN || process.env.CRON_SECRET;
   if (!expected || expected.trim().length === 0) {
     return NextResponse.json(
       { error: { code: 'not_found', message: 'Not found.' } },
@@ -70,10 +79,21 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 }
 
-/** A GET would be cached and pre-fetched; only POST runs anything. */
-export async function GET(): Promise<NextResponse> {
-  return NextResponse.json(
-    { error: { code: 'method_not_allowed', message: 'Use POST.' } },
-    { status: 405 },
-  );
+/**
+ * Vercel Cron, which can only issue a GET.
+ *
+ * Held to the same standard as POST rather than being a softer way in: it
+ * requires the same Bearer token, compared the same way, and returns the same
+ * 404 when no token is configured. The one difference is that it also accepts
+ * Vercel's own CRON_SECRET, which the platform sets on scheduled invocations.
+ *
+ * A GET that changes things is normally a mistake — it can be prefetched or
+ * cached. Neither applies to an authenticated endpoint that no browser ever
+ * links to, and the response is marked no-store regardless. The alternative
+ * was a second route doing the same work, which is worse.
+ */
+export async function GET(request: Request): Promise<NextResponse> {
+  return runFromRequest(request);
 }
+
+export const dynamic = 'force-dynamic';

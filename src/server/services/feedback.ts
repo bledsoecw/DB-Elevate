@@ -13,6 +13,7 @@ import {
 import { AUDIT_ACTIONS, recordAudit } from '../audit';
 import { notify } from '../notify';
 import { AUTHOR_VISIBILITIES, FEEDBACK_KINDS, FEEDBACK_VISIBILITIES } from '@/lib/enums';
+import { containsInsensitive } from '../search';
 
 /**
  * Continuous feedback and recognition.
@@ -160,7 +161,7 @@ export async function listFeedback(actor: Actor, filters: FeedbackFilters = {}):
 
   if (filters.aboutEmployeeId) where.aboutEmployeeId = filters.aboutEmployeeId;
   if (filters.kind) where.kind = filters.kind;
-  if (filters.query) where.body = { contains: filters.query };
+  if (filters.query) where.body = containsInsensitive(filters.query);
 
   // Private notes are excluded at the query level unless they are the author's.
   if (view !== 'my-notes' && view !== 'written-by-me') {

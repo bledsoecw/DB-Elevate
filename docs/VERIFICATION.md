@@ -25,13 +25,14 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 | Compensation access (browser) | **44 / 44 passed** |
 | Compensation flow end to end (browser) | **22 / 22 passed** |
 | Compensation budget ceilings (browser) | **18 / 18 passed** |
+| Case-insensitive search (browser) | **8 / 8 passed** |
 | Google Workspace SSO (browser, own server) | **19 / 19 passed** |
 | Demonstration sign-in panel (browser) | **7 / 7 passed** |
 | First run on an empty organization (browser) | **4 / 4 passed** |
 | Layout, desktop 1440px and phone 390px | No horizontal overflow on 20 pages |
 | Console / server errors during browser runs | None |
 
-**500 automated checks**, all passing.
+**508 automated checks**, all passing — **on PostgreSQL 16**, not SQLite.
 
 Two caveats about that number, both earned.
 
@@ -56,6 +57,20 @@ consequences:
   nothing. The authorization was in fact correct — re-run against the right
   account it returns 403 on all three writes — but the suite was not
   demonstrating that.
+
+**A sixth, and the most consequential, was found by moving to PostgreSQL** —
+and it could only ever have been found there. `contains` in Prisma compiles to
+`LIKE`. SQLite's `LIKE` is case-insensitive for ASCII; PostgreSQL's is not. So
+every search box in the application — the employee directory, accounts, goals,
+feedback — silently stopped matching anything the user did not capitalise
+exactly, with no error anywhere. Searching "rosa" returned nothing while "Rosa"
+worked.
+
+Thirteen queries were affected. They now go through `src/server/search.ts`,
+which adds `mode: 'insensitive'`, and `tests/browser/search-case-test.js`
+asserts the behaviour in four different casings across two different search
+surfaces. This is the strongest argument in this codebase for development and
+production running the same database engine, which they now do.
 
 A fifth was a product bug the suite surfaced while the logos were being wired
 in: the organization-settings form computed "unsaved changes" by comparing its
@@ -380,9 +395,10 @@ are rendered back by the server", and the suite was re-run **against a cold
 
 Stated plainly.
 
-- **PostgreSQL.** Everything was run on SQLite. The schema avoids SQLite-specific
-  features and should port, but no migration has been generated or run against
-  Postgres, and no query has been checked for Postgres-specific behaviour.
+- ~~**PostgreSQL.**~~ **Now verified.** The whole suite — 210 unit tests, 43 e2e
+  checks and 224 browser checks — was re-run against a real PostgreSQL 16
+  server, not SQLite. Doing so found a genuine bug that SQLite had been hiding;
+  see below.
 - **Live e-mail delivery.** No mail client is implemented, so the delivery path
   beyond "queued and held" is untested by construction. The outbox, the
   held-not-sent reporting and the transport fallback are tested.

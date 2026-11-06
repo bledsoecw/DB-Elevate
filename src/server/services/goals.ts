@@ -15,6 +15,7 @@ import { computeGoalProgress, goalRisk, type GoalProgressResult } from '../scori
 import { AUDIT_ACTIONS, recordAudit } from '../audit';
 import { notify } from '../notify';
 import { GOAL_SCOPES, GOAL_STATUSES, GOAL_HEALTHS, GOAL_VISIBILITIES, MEASUREMENT_TYPES } from '@/lib/enums';
+import { containsInsensitive, containsInsensitiveNullable } from '../search';
 
 /**
  * Goals.
@@ -190,8 +191,8 @@ export async function listGoals(actor: Actor, filters: GoalFilters = {}): Promis
   if (filters.health) where.health = filters.health;
   if (filters.query) {
     where.OR = [
-      { title: { contains: filters.query } },
-      { description: { contains: filters.query } },
+      { title: containsInsensitive(filters.query) },
+      { description: containsInsensitiveNullable(filters.query) },
     ];
   }
 
