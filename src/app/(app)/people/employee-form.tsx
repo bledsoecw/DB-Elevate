@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Save } from 'lucide-react';
 import { api, errorMessage, ApiError } from '@/lib/client-api';
@@ -43,6 +44,7 @@ export function EmployeeForm({
   initial,
   options,
   canSetReportingLine,
+  canManageCatalog,
 }: {
   mode: 'create' | 'edit';
   employeeId?: string;
@@ -53,6 +55,8 @@ export function EmployeeForm({
     managers: { id: string; firstName: string; lastName: string; preferredName: string | null; jobTitle: { name: string } | null }[];
   };
   canSetReportingLine: boolean;
+  /** HR administrators can go and fill an empty picker themselves. */
+  canManageCatalog: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -200,7 +204,21 @@ export function EmployeeForm({
             value={values.jobTitleId}
             onChange={(e) => set('jobTitleId', e.target.value)}
             placeholder="Not set"
-            help="Job titles carry the competency library used in reviews."
+            help={
+              options.jobTitles.length > 0 ? (
+                'Job titles carry the competency library used in reviews.'
+              ) : canManageCatalog ? (
+                <>
+                  No job titles have been set up yet, so there is nothing to choose.{' '}
+                  <Link href="/admin/job-titles" className="font-medium underline">
+                    Add job titles and departments
+                  </Link>
+                  , then come back here.
+                </>
+              ) : (
+                'No job titles have been set up yet. An HR administrator adds them under Administration → Job titles and departments.'
+              )
+            }
           >
             {options.jobTitles.map((t) => (
               <option key={t.id} value={t.id}>
@@ -215,6 +233,19 @@ export function EmployeeForm({
             value={values.departmentId}
             onChange={(e) => set('departmentId', e.target.value)}
             placeholder="Not set"
+            help={
+              options.departments.length > 0 ? undefined : canManageCatalog ? (
+                <>
+                  No departments have been set up yet.{' '}
+                  <Link href="/admin/job-titles" className="font-medium underline">
+                    Add job titles and departments
+                  </Link>
+                  , then come back here.
+                </>
+              ) : (
+                'No departments have been set up yet. An HR administrator adds them under Administration → Job titles and departments.'
+              )
+            }
           >
             {options.departments.map((d) => (
               <option key={d.id} value={d.id}>

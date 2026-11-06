@@ -16,6 +16,8 @@ import type {
   RatingScaleSchema,
   RecognitionValuePatchSchema,
   RecognitionValueSchema,
+  DepartmentSchema,
+  JobTitleSchema,
 } from '../validation/admin';
 
 /**
@@ -584,7 +586,246 @@ export async function listJobTitles(actor: Actor) {
     include: {
       department: { select: { id: true, name: true } },
       competencyLibrary: { select: { id: true, name: true } },
-      _count: { select: { employees: true } },
+      // Active only. A headcount that includes people who have left makes a
+      // title look occupied when it is not, and it is the active count that
+      // decides whether the title can be archived.
+      _count: { select: { employees: { where: { employmentStatus: 'active' } } } },
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Departments and job titles
+// ---------------------------------------------------------------------------
+
+/*
+ * These two were reachable only through the seed, which meant a real
+ * installation could never populate the pickers on an employee record. The
+ * consequence was not cosmetic: a job title carries the competency library a
+ * review is built from and the salary band a pay recommendation is measured
+ * against, and a department scopes reporting and feedback visibility. Without
+ * them, three modules quietly have nothing to work with.
+ */
+
+export async function listDepartments(actor: Actor) {
+  requireProgramAdmin(actor);
+  return prisma.department.findMany({
+    where: { orgId: actor.orgId },
+    orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+    include: {
+      parent: { select: { id: true, name: true } },
+      _count: {
+        select: {
+          employees: { where: { employmentStatus: 'active' } },
+          jobTitles: true,
+          children: true,
+        },
+      },
+    },
+  });
+}
+
+export type DepartmentInput = z.infer<typeof DepartmentSchema>;
+
+export async function createDepartment(actor: Actor, input: DepartmentInput) {
+  requireProgramAdmin(actor);
+  const name = input.name.trim();
+  if (name.length < 2) throw new ValidationError('A department needs a name.');
+
+  if (input.parentId) await assertDepartmentExists(actor, input.parentId);
+
+  try {
+    const department = await prisma.department.create({
+      data: {
+        orgId: actor.orgId,
+        name,
+        code: input.code?.trim() || null,
+        parentId: input.parentId ?? null,
+        sortOrder: input.sortOrder ?? 0,
+        active: input.active ?? true,
+      },
+    });
+    await recordAudit(actor, {
+      action: AUDIT_ACTIONS.DEPARTMENT_CREATED,
+      entityType: 'department',
+      entityId: department.id,
+      summary: `Added department "${department.name}"`,
+    });
+    return department;
+  } catch (err) {
+    return nameTaken(err, 'department');
+  }
+}
+
+export async function updateDepartment(
+  actor: Actor,
+  id: string,
+  input: Partial<DepartmentInput>,
+) {
+  requireProgramAdmin(actor);
+  const existing = await prisma.department.findFirst({ where: { id, orgId: actor.orgId } });
+  if (!existing) throw new NotFoundError();
+
+  if (input.parentId !== undefined && input.parentId !== null) {
+    if (input.parentId === id) {
+      throw new ValidationError('A department cannot report to itself.');
+    }
+    await assertDepartmentExists(actor, input.parentId);
+    // Walk up from the proposed parent. If this department is anywhere on
+    // that path, the move would create a cycle and the tree would never
+    // render again.
+    let cursor: string | null = input.parentId;
+    const seen = new Set<string>();
+    while (cursor) {
+      if (cursor === id) {
+        throw new ValidationError(
+          'That would put the department inside one of its own sub-departments.',
+        );
+      }
+      if (seen.has(cursor)) break;
+      seen.add(cursor);
+      const parent: { parentId: string | null } | null = await prisma.department.findUnique({
+        where: { id: cursor },
+        select: { parentId: true },
+      });
+      cursor = parent?.parentId ?? null;
+    }
+  }
+
+  // Deactivating a department with people still in it hides a group from
+  // every picker while their records still point at it.
+  if (input.active === false && existing.active) {
+    const people = await prisma.employee.count({
+      where: { departmentId: id, employmentStatus: 'active' },
+    });
+    if (people > 0) {
+      throw new ConflictError(
+        `${people} active ${people === 1 ? 'person is' : 'people are'} in this department. ` +
+          'Move them first, then archive it.',
+      );
+    }
+  }
+
+  try {
+    const department = await prisma.department.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.code !== undefined ? { code: input.code?.trim() || null } : {}),
+        ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
+        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        ...(input.active !== undefined ? { active: input.active } : {}),
+      },
+    });
+    await recordAudit(actor, {
+      action: AUDIT_ACTIONS.DEPARTMENT_UPDATED,
+      entityType: 'department',
+      entityId: id,
+      summary: `Updated department "${department.name}"`,
+    });
+    return department;
+  } catch (err) {
+    return nameTaken(err, 'department');
+  }
+}
+
+async function assertDepartmentExists(actor: Actor, id: string): Promise<void> {
+  const found = await prisma.department.findFirst({
+    where: { id, orgId: actor.orgId },
+    select: { id: true },
+  });
+  if (!found) throw new ValidationError('That parent department does not exist.');
+}
+
+export type JobTitleInput = z.infer<typeof JobTitleSchema>;
+
+export async function createJobTitle(actor: Actor, input: JobTitleInput) {
+  requireProgramAdmin(actor);
+  const name = input.name.trim();
+  if (name.length < 2) throw new ValidationError('A job title needs a name.');
+
+  if (input.departmentId) await assertDepartmentExists(actor, input.departmentId);
+  if (input.competencyLibraryId) await assertLibraryExists(actor, input.competencyLibraryId);
+
+  try {
+    const jobTitle = await prisma.jobTitle.create({
+      data: {
+        orgId: actor.orgId,
+        name,
+        level: input.level?.trim() || null,
+        departmentId: input.departmentId ?? null,
+        competencyLibraryId: input.competencyLibraryId ?? null,
+        active: input.active ?? true,
+      },
+    });
+    await recordAudit(actor, {
+      action: AUDIT_ACTIONS.JOB_TITLE_CREATED,
+      entityType: 'job_title',
+      entityId: jobTitle.id,
+      summary: `Added job title "${jobTitle.name}"`,
+    });
+    return jobTitle;
+  } catch (err) {
+    return nameTaken(err, 'job title');
+  }
+}
+
+export async function updateJobTitle(actor: Actor, id: string, input: Partial<JobTitleInput>) {
+  requireProgramAdmin(actor);
+  const existing = await prisma.jobTitle.findFirst({ where: { id, orgId: actor.orgId } });
+  if (!existing) throw new NotFoundError();
+
+  if (input.departmentId) await assertDepartmentExists(actor, input.departmentId);
+  if (input.competencyLibraryId) await assertLibraryExists(actor, input.competencyLibraryId);
+
+  /*
+   * A title is deactivated, never deleted, once anybody holds it. Deleting
+   * would take the salary band with it (the band is keyed on the title) and
+   * strip the title from every historical employee record — including the
+   * snapshots a past review and a past pay decision were made against.
+   * Deactivating removes it from the pickers and leaves the record intact.
+   */
+  if (input.active === false && existing.active) {
+    const holders = await prisma.employee.count({
+      where: { jobTitleId: id, employmentStatus: 'active' },
+    });
+    if (holders > 0) {
+      throw new ConflictError(
+        `${holders} active ${holders === 1 ? 'person holds' : 'people hold'} this title. ` +
+          'Move them to another title first, then archive it.',
+      );
+    }
+  }
+
+  try {
+    const jobTitle = await prisma.jobTitle.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.level !== undefined ? { level: input.level?.trim() || null } : {}),
+        ...(input.departmentId !== undefined ? { departmentId: input.departmentId } : {}),
+        ...(input.competencyLibraryId !== undefined
+          ? { competencyLibraryId: input.competencyLibraryId }
+          : {}),
+        ...(input.active !== undefined ? { active: input.active } : {}),
+      },
+    });
+    await recordAudit(actor, {
+      action: AUDIT_ACTIONS.JOB_TITLE_UPDATED,
+      entityType: 'job_title',
+      entityId: id,
+      summary: `Updated job title "${jobTitle.name}"`,
+    });
+    return jobTitle;
+  } catch (err) {
+    return nameTaken(err, 'job title');
+  }
+}
+
+async function assertLibraryExists(actor: Actor, id: string): Promise<void> {
+  const found = await prisma.competencyLibrary.findFirst({
+    where: { id, orgId: actor.orgId },
+    select: { id: true },
+  });
+  if (!found) throw new ValidationError('That competency library does not exist.');
 }

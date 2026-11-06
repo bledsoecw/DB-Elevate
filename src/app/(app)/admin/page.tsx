@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   Award,
+  Briefcase,
   ClipboardList,
   Database,
   FileText,
@@ -34,12 +35,23 @@ export default async function AdminPage() {
       prisma.ratingScale.count({ where: { orgId: actor.orgId, archived: false } }),
       prisma.employee.count({ where: { orgId: actor.orgId, employmentStatus: 'active' } }),
       prisma.employee.count({ where: { orgId: actor.orgId, isDemoData: true } }),
+      prisma.jobTitle.count({ where: { orgId: actor.orgId, active: true } }),
+      prisma.department.count({ where: { orgId: actor.orgId, active: true } }),
     ]),
     actor.isHrAdmin ? hrDashboard(actor) : null,
     prisma.emailMessage.count({ where: { orgId: actor.orgId, status: 'QUEUED' } }),
   ]);
 
-  const [templateCount, activeCycles, competencyCount, scaleCount, employeeCount, demoCount] = counts;
+  const [
+    templateCount,
+    activeCycles,
+    competencyCount,
+    scaleCount,
+    employeeCount,
+    demoCount,
+    jobTitleCount,
+    departmentCount,
+  ] = counts;
 
   const programCards = [
     {
@@ -62,6 +74,17 @@ export default async function AdminPage() {
       title: 'Competencies and libraries',
       description: 'The skills assessed in reviews, with behavioural descriptors by level, grouped into libraries by role.',
       meta: countLabel(competencyCount, 'competency', 'competencies'),
+    },
+    {
+      href: '/admin/job-titles',
+      icon: Briefcase,
+      title: 'Job titles and departments',
+      description:
+        'The two pickers on every employee record. A job title carries the competency library a review is built from and owns the salary band a pay recommendation is measured against.',
+      meta:
+        jobTitleCount === 0
+          ? 'Not set up yet'
+          : `${countLabel(jobTitleCount, 'job title')} · ${countLabel(departmentCount, 'department')}`,
     },
     {
       href: '/admin/scales',

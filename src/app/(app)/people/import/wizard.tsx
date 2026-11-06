@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, X } from 'lucide-react';
 import { api, errorMessage } from '@/lib/client-api';
@@ -366,15 +367,32 @@ export function ImportWizard({
                 {report.unknownDepartments.length > 0 && (
                   <li>
                     <strong>Departments not set up yet:</strong> {report.unknownDepartments.join(', ')}.
-                    Those people will be imported without a department. Create the departments first
-                    if you want them matched.
+                    Those people will be imported without a department.{' '}
+                    <Link
+                      href="/admin/job-titles"
+                      target="_blank"
+                      rel="noopener"
+                      className="font-medium underline"
+                    >
+                      Add them first (opens in a new tab)
+                    </Link>{' '}
+                    if you want them matched, then upload the file again.
                   </li>
                 )}
                 {report.unknownJobTitles.length > 0 && (
                   <li>
                     <strong>Job titles not set up yet:</strong> {report.unknownJobTitles.join(', ')}.
                     Those people will be imported without a job title, and so without a competency
-                    library.
+                    library or a salary band.{' '}
+                    <Link
+                      href="/admin/job-titles"
+                      target="_blank"
+                      rel="noopener"
+                      className="font-medium underline"
+                    >
+                      Add them first (opens in a new tab)
+                    </Link>{' '}
+                    if you want them matched, then upload the file again.
                   </li>
                 )}
                 {report.unresolvedManagers.length > 0 && (

@@ -181,6 +181,36 @@ export const RecognitionValueSchema = z.object({
 
 export const RecognitionValuePatchSchema = RecognitionValueSchema.partial();
 
+// --- Departments and job titles ---------------------------------------------
+
+/*
+ * A job title carries the competency library a review is built from and the
+ * salary band a pay recommendation is measured against, so the pickers on an
+ * employee record are not decoration. Neither entity is ever deleted through
+ * the API: deactivating keeps historical employee records, past reviews and
+ * past pay decisions pointing at something that still has a name.
+ */
+
+export const DepartmentSchema = z.object({
+  name: z.string().trim().min(2, 'Give the department a name.').max(120),
+  code: z.string().trim().max(40).nullable().optional(),
+  parentId: Id.nullable().optional(),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+  active: z.boolean().optional(),
+});
+
+export const DepartmentPatchSchema = DepartmentSchema.partial();
+
+export const JobTitleSchema = z.object({
+  name: z.string().trim().min(2, 'Give the job title a name.').max(120),
+  level: z.string().trim().max(60).nullable().optional(),
+  departmentId: Id.nullable().optional(),
+  competencyLibraryId: Id.nullable().optional(),
+  active: z.boolean().optional(),
+});
+
+export const JobTitlePatchSchema = JobTitleSchema.partial();
+
 // --- Development plans ------------------------------------------------------
 
 export const PlanActionSchema = z.object({

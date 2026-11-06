@@ -21,6 +21,7 @@ export default async function NewEmployeePage() {
       <EmployeeForm
         mode="create"
         canSetReportingLine
+        canManageCatalog={actor.isHrAdmin}
         options={options}
         initial={{
           firstName: '',

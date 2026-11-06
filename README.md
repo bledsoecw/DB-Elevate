@@ -57,8 +57,19 @@ application with nobody able to grant the other. That is not a good permanent
 arrangement — create a second administrator and then drop one of your two roles.
 See [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for why the split matters.
 
-From there: Administration → Organization for naming, colours, time zone and
-privacy thresholds; People → Import to bring in employees from a CSV.
+From there, in this order:
+
+1. **Administration → Organization** for naming, colours, time zone and privacy
+   thresholds.
+2. **Administration → Job titles and departments** to build the two lists every
+   employee record is filled in from. Do this before adding people: a job title
+   carries the competency library a review is built from and owns the salary
+   band a pay recommendation is measured against, so someone added without one
+   gets a review with no competencies and a compensation row with no band. A
+   CSV import matches these by name and warns about any it does not recognise,
+   so the names here should match the ones in your file.
+3. **People → Import** to bring in employees from a CSV, or **People → Add an
+   employee** one at a time.
 
 ### Signing in
 
@@ -189,7 +200,8 @@ Released reviews print cleanly.
 
 **Administration.** Employee directory and profiles, CSV import with field
 mapping, validation, duplicate detection and a preview that is the contract the
-commit honours. Competencies, libraries, rating scales, recognition values,
+commit honours. Job titles and departments, competencies, libraries, rating
+scales, recognition values,
 organization settings, branding, accounts and roles, an append-only audit log,
 a local e-mail outbox, optional AI configuration, demonstration-data removal,
 and an exceptions worklist.
@@ -250,13 +262,23 @@ Stated plainly, because a feature list that hides these is not useful.
 - **Reporting graph held in memory.** The reporting structure is loaded and
   walked in memory, which is far cheaper than recursive queries at this scale
   (hundreds of employees) and would need a recursive CTE at tens of thousands.
-- **Attachments on local disk.** Private and permission-checked, but on the
-  application's own filesystem; object storage means reimplementing four
-  functions in `src/server/storage/files.ts`.
+- **Attachments stored as rows.** Private and permission-checked, and held in
+  the database rather than on disk, because a serverless host has no writable
+  filesystem that survives a request. That is correct but not cheap at volume;
+  object storage means reimplementing four functions in
+  `src/server/storage/files.ts`. (`STORAGE_DRIVER=filesystem` restores the
+  on-disk driver for a self-hosted install.)
 - **Surveys cannot be edited after creation.** There is no survey edit path at
   all — create, launch, close and remind is the whole surface. A typo in a
   question means creating the survey again. (The mode being unchangeable is
   deliberate and should stay; the rest is a gap.)
+- **The `scheduled_jobs` table is never written to.** The nightly runner does
+  all of its work by scanning for what is due — surveys to open and close,
+  reminders to send — and every `kind` the stored-job path can execute is
+  already covered by one of those scans. So nothing is missed, but the stored
+  queue, its claim-and-retry logic and the `ScheduledJob` model are dead
+  weight: either give them a producer or delete them. Found while auditing
+  which models have no write path.
 - **Browser tests need a running server.** They are not hermetic and they seed
   the database first, so do not point them at anything you care about.
 

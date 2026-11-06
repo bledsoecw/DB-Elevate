@@ -7,7 +7,7 @@ reasoning. Current as of 2026-11-05.
 
 The application is complete and working against the brief: every module is
 built, every visible control does something, and no internal link is dangling.
-297 automated checks pass (134 unit, 43 workflow, 120 supplementary browser).
+549 automated checks pass (216 unit, 43 workflow, 290 supplementary browser).
 See [VERIFICATION.md](VERIFICATION.md) for what that covers and — more usefully
 — what it does not.
 
@@ -26,9 +26,12 @@ See [VERIFICATION.md](VERIFICATION.md) for what that covers and — more usefull
 | `5bd1707` | Calibration sessions with recorded human decisions |
 | `a1be955` | Development plans, improvement plans, the account page |
 | `a94d522` | Scheduled jobs, private attachments, optional AI scaffolding |
-| *(this one)* | Documentation, committed browser suites, build fix, layout fixes |
+| `a94d522`+ | Documentation, committed browser suites, build fix, layout fixes |
+| *(later)* | PerformYard layout, branding, competencies, compensation, SSO, PostgreSQL and the Vercel deployment |
+| *(this one)* | Job title and department management — the two pickers on an employee record had no write path at all |
 
-Branch: `claude/great-hawking-djo6w0`.
+Branch: `main`, which is also the Vercel production branch. The earlier work
+was done on `claude/great-hawking-djo6w0` and merged.
 
 ## Layout of the code
 
@@ -93,10 +96,10 @@ In the order I would do them.
    never been executed. It is the highest-value unverified thing here, because
    it is the one that matters on the worst day.
 
-3. **Generate and test the PostgreSQL migration.** Change the datasource,
-   regenerate, run the full suite against Postgres. Everything was built on
-   SQLite; the schema should port cleanly but "should" is doing work in that
-   sentence.
+3. ~~**Generate and test the PostgreSQL migration.**~~ **Done.** The datasource
+   is PostgreSQL, SQLite support is gone, and the full suite was re-run against
+   a real PostgreSQL 16 — which is how the case-sensitivity bug in every search
+   box was found. See [VERIFICATION.md](VERIFICATION.md).
 
 4. **Run an accessibility audit.** Labels, focus management, heading order and
    contrast were built in and spot-checked, but no axe pass and no screen-reader
@@ -152,3 +155,13 @@ deferred and listed there (printable statements, a defined export, proration).
 
 - **Never reuse `TableWrap` with your own `<table>`** — it renders one already.
   That mistake produced a real hydration failure on three pages.
+
+- **A model with no write path is an empty picker, not a compile error.**
+  `Department` and `JobTitle` could only be created by the seed for most of
+  this project's life, so a real installation opened the employee form and
+  found two dropdowns with nothing in them, and nothing anywhere said so. The
+  check that finds this is comparing the models in `prisma/schema.prisma`
+  against the models something actually calls `create`, `createMany` or
+  `upsert` on (nested `relation: { create: … }` counts). As of the audit the
+  only remaining one is `ScheduledJob`, which is dead rather than missing — see
+  the known limitations in the README.

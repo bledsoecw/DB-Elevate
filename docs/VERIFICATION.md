@@ -4,9 +4,10 @@ What was tested, what passed, and what remains unverified. The last section is
 the important one — a verification document that only lists successes is a
 marketing document.
 
-Run on 2026-11-05 against commit `a94d522` plus the documentation work, on
-Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
-78 participants, 168 review assignments, 70 goals, 3 surveys, 199 audit events).
+Last re-run on 2026-11-06 after the job-title and department work, on Node 22
+and **PostgreSQL 16**, against a seeded demonstration organization (27
+employees, 6 cycles, 78 participants, 168 review assignments, 70 goals, 3
+surveys). Earlier rows that have not been re-run since are marked as such.
 
 ## Summary
 
@@ -14,8 +15,9 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 |---|---|
 | `npm run typecheck` | Clean |
 | `npm run build` (production) | Succeeds |
-| `npm test` — unit | **210 / 210 passed** |
+| `npm test` — unit | **216 / 216 passed** |
 | `npm run test:e2e` — browser workflow and permissions | **43 / 43 passed** |
+| Job titles and departments (browser) | **34 / 34 passed** |
 | Catalogue administration (browser) | **16 / 16 passed** |
 | System administration and role separation (browser) | **33 / 33 passed** |
 | Calibration (browser) | **23 / 23 passed** |
@@ -26,13 +28,15 @@ Node 22, SQLite, a seeded demonstration organization (27 employees, 6 cycles,
 | Compensation flow end to end (browser) | **22 / 22 passed** |
 | Compensation budget ceilings (browser) | **18 / 18 passed** |
 | Case-insensitive search (browser) | **8 / 8 passed** |
-| Google Workspace SSO (browser, own server) | **19 / 19 passed** |
-| Demonstration sign-in panel (browser) | **7 / 7 passed** |
-| First run on an empty organization (browser) | **4 / 4 passed** |
+| Google Workspace SSO (browser, own server) | **21 / 21 passed** |
+| Demonstration sign-in panel (browser) | **7 / 7 passed** *(not re-run; needs its own server on :3100)* |
+| First run on an empty organization (browser) | **4 / 4 passed** *(not re-run; needs a blank database)* |
 | Layout, desktop 1440px and phone 390px | No horizontal overflow on 20 pages |
 | Console / server errors during browser runs | None |
 
-**508 automated checks**, all passing — **on PostgreSQL 16**, not SQLite.
+**549 automated checks**, all passing — **on PostgreSQL 16**, not SQLite. 538
+of those were re-run end to end for this revision; the two suites marked above
+need an environment of their own and carry their earlier result.
 
 Two caveats about that number, both earned.
 
@@ -153,6 +157,25 @@ redirect hides a permission hole rather than preventing it.
 
 ### Supplementary suites
 
+**Job titles and departments (34/34)** — the suite that exists because the two
+pickers on the employee record were empty with no way to fill them. A
+department and a job title are created through the API, appear on the
+management page, and — the point — appear in the pickers on `/people/new`.
+Both dialogs are *also* driven by clicking, because an API-only suite passes
+happily with a dialog wired to nothing. A duplicate name is refused (**422**);
+a department cannot report to itself, nor be moved inside one of its own
+sub-departments (**422**); an unknown parent department or competency library
+is refused and nothing is stored. Archiving a job title people still hold, or
+a department people are still in, is refused (**409**) and the record is left
+active; an unheld title archives, drops out of the employee form picker and
+stays listed under "Archived". Both creations land in the audit log. A manager
+and a plain employee are redirected away from the page and get **403** from all
+five API routes.
+
+Every refusal is asserted on the server's **message**, not only its status.
+Zod rejections and business-rule rejections both return 422, so a status-only
+check would pass if the rule never ran and the schema caught it instead.
+
 **Catalogue (16/16)** — competency ladder create and edit persist; a rating
 scale used by a published template is frozen, its level inputs are disabled, and
 a direct `PATCH` with new levels returns **409**; duplicate level values block
@@ -160,7 +183,7 @@ the save; an unused recognition value deletes while a used one deactivates; a
 plain employee gets **403** from `/api/admin/competencies`, `/scales` and
 `/recognition`.
 
-**System administration (29/29)** — settings round-trip and persist across a
+**System administration (33/33)** — settings round-trip and persist across a
 reload; branding is read from the database (changing the wordmark changes the
 sidebar); a real mail provider cannot be selected and the API returns **409**;
 a paid AI provider is refused with **409** without `AI_BILLING_APPROVED`; the

@@ -44,6 +44,7 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
         mode="edit"
         employeeId={id}
         canSetReportingLine={data.canChangeManager}
+        canManageCatalog={actor.isHrAdmin}
         options={options}
         initial={{
           firstName: e.firstName,
