@@ -115,3 +115,19 @@ export function resolveSso(env: SsoEnv): SsoState {
     passwordLoginAllowed: env.ALLOW_PASSWORD_LOGIN === 'true',
   };
 }
+
+/**
+ * Whether a new account for this address should have no password at all.
+ *
+ * True when single sign-on is configured and the address belongs to one of
+ * the allowed Workspace domains — that person signs in with Google, so a
+ * password would be a credential nobody needs, nobody uses, and somebody can
+ * eventually steal.
+ */
+export function addressUsesSso(state: SsoState, email: string): boolean {
+  if (!state.enabled) return false;
+  const at = email.lastIndexOf('@');
+  if (at < 0) return false;
+  const domain = email.slice(at + 1).trim().toLowerCase();
+  return state.config.allowedDomains.includes(domain);
+}

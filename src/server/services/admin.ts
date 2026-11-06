@@ -15,6 +15,7 @@ import { hashPassword } from '../auth/password';
 import { ROLES, type Role } from '@/lib/enums';
 import type { OrgSettingsSchema } from '../validation/admin';
 import { containsInsensitive, startsWithInsensitive } from '../search';
+import { accountUsesSso } from '../auth/sso';
 
 /**
  * Application administration: organization settings and branding, accounts and
@@ -513,7 +514,7 @@ export async function createAccountForEmployee(
   actor: Actor,
   employeeId: string,
   temporaryPassword: string,
-): Promise<{ userId: string }> {
+): Promise<{ userId: string; usesSso: boolean }> {
   if (!canManageAccountsAndRoles(actor)) {
     throw new ForbiddenError('Only a system administrator can create accounts.');
   }
@@ -534,14 +535,21 @@ export async function createAccountForEmployee(
     );
   }
 
+  // A Workspace address signs in with Google, so it gets no password. Any
+  // temporary password supplied for such an account is discarded rather than
+  // stored — it could never be used, and an unused credential is only a
+  // liability.
+  const usesSso = accountUsesSso(employee.workEmail);
+  const passwordHash = usesSso ? null : await hashPassword(temporaryPassword);
+
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {
         orgId: actor.orgId,
         email: employee.workEmail,
-        passwordHash: await hashPassword(temporaryPassword),
+        passwordHash,
         status: 'active',
-        mustChangePassword: true,
+        mustChangePassword: !usesSso,
         roles: { create: [{ role: 'EMPLOYEE', grantedBy: actor.userId }] },
       },
     });
@@ -553,10 +561,12 @@ export async function createAccountForEmployee(
     action: AUDIT_ACTIONS.USER_INVITED,
     entityType: 'user',
     entityId: user.id,
-    summary: `Created an account for ${employee.firstName} ${employee.lastName} (${employee.workEmail})`,
+    summary:
+      `Created an account for ${employee.firstName} ${employee.lastName} (${employee.workEmail}), ` +
+      `signing in with ${usesSso ? 'Google Workspace' : 'a password'}`,
   });
 
-  return { userId: user.id };
+  return { userId: user.id, usesSso };
 }
 
 // ---------------------------------------------------------------------------

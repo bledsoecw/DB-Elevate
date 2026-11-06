@@ -304,6 +304,29 @@ async function run() {
 
     // An account with no password must not be distinguishable from one that
     // does not exist. Both get the same generic refusal.
+    // The rule that outlives ALLOW_PASSWORD_LOGIN: a Workspace address signs
+    // in with Google whatever else is configured. This server HAS passwords
+    // enabled, and the company address is still refused.
+    const workspaceAddress = await ctx.request.post(`${BASE}/api/auth/login`, {
+      data: { email: 'someone@deitemeyerbrothers.com', password: PW },
+      ...POST_REQ,
+    });
+    check(
+      'A Workspace address is refused a password even with passwords enabled',
+      workspaceAddress.status() === 403 && /sso_required/.test(await workspaceAddress.text()),
+      `HTTP ${workspaceAddress.status()}`,
+    );
+
+    const outsideAddress = await ctx.request.post(`${BASE}/api/auth/login`, {
+      data: { email: 'contractor@elsewhere.example', password: 'not-the-password' },
+      ...POST_REQ,
+    });
+    check(
+      'An address outside the Workspace still gets the ordinary password path',
+      outsideAddress.status() === 401,
+      `HTTP ${outsideAddress.status()}`,
+    );
+
     const unknown = await ctx.request.post(`${BASE}/api/auth/login`, {
       data: { email: 'nobody.at.all@deitemeyerbrothers.example', password: 'whatever-it-is' },
       ...POST_REQ,

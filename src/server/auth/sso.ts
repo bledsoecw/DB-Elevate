@@ -1,5 +1,5 @@
 import 'server-only';
-import { resolveSso, type SsoState } from './sso-config';
+import { addressUsesSso, resolveSso, type SsoState } from './sso-config';
 
 /**
  * The live SSO state for this deployment, read from the process environment.
@@ -50,4 +50,31 @@ export function ssoPublicState(): SsoPublicState {
     passwordAllowed: state.passwordLoginAllowed,
     domains: state.config.allowedDomains,
   };
+}
+
+/**
+ * Whether an account for this address signs in with Google rather than a
+ * password. Used wherever an account is created, so the three creation paths
+ * — import, a single employee, and Administration -> Accounts — cannot drift
+ * apart on the question of who gets a password.
+ */
+export function accountUsesSso(email: string): boolean {
+  return addressUsesSso(ssoState(), email);
+}
+
+/**
+ * Whether the password endpoint must refuse this address outright.
+ *
+ * Stronger than switching passwords off globally, and deliberately so. With
+ * ALLOW_PASSWORD_LOGIN unset, passwords are off for everybody; the moment
+ * somebody turns them on for one exception, every company account becomes
+ * reachable by password again. This rule says a Workspace address signs in
+ * with Google *whatever else is configured*, so turning passwords on for an
+ * exception cannot weaken the accounts that hold salary and review data.
+ *
+ * It leaks nothing. The answer depends only on the domain of the address the
+ * caller already typed, not on whether any account exists.
+ */
+export function mustUseSso(email: string): boolean {
+  return accountUsesSso(email);
 }

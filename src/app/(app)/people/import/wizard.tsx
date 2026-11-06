@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, X } from 'lucide-react';
 import { api, errorMessage } from '@/lib/client-api';
@@ -79,7 +79,15 @@ const OUTCOME_LABEL: Record<RowOutcome, string> = {
  * commit applies exactly the outcomes shown, so an administrator is never asked
  * to approve a change they have not seen.
  */
-export function ImportWizard({ fields }: { fields: FieldDef[] }) {
+export function ImportWizard({
+  fields,
+  ssoEnabled,
+  ssoDomains,
+}: {
+  fields: FieldDef[];
+  ssoEnabled: boolean;
+  ssoDomains: string[];
+}) {
   const router = useRouter();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -92,6 +100,25 @@ export function ImportWizard({ fields }: { fields: FieldDef[] }) {
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * People in this file who would get an account they cannot sign in with,
+   * because their address is outside every allowed Workspace domain.
+   *
+   * Computed from the preview rather than discovered after the import, so the
+   * problem is visible while it is still cheap to fix.
+   */
+  const outsideWorkspace = useMemo(() => {
+    if (!ssoEnabled || !report) return [];
+    const allowed = ssoDomains.map((d) => d.toLowerCase());
+    return report.rows
+      .filter((r) => r.outcome === 'CREATE')
+      .map((r) => r.email.toLowerCase())
+      .filter((email) => {
+        const at = email.lastIndexOf('@');
+        return at < 0 || !allowed.includes(email.slice(at + 1));
+      });
+  }, [ssoEnabled, ssoDomains, report]);
   const [result, setResult] = useState<{ created: number; updated: number; skipped: number; errors: number } | null>(
     null,
   );
@@ -428,11 +455,21 @@ export function ImportWizard({ fields }: { fields: FieldDef[] }) {
             <CardFooter className="space-y-3">
               <Checkbox
                 label="Also create sign-in accounts for the people being added"
-                description="Without an account they have a record but cannot sign in. Everyone created this way must change the password at first sign-in. No e-mail is sent."
+                description={
+                  ssoEnabled
+                    ? `Without an account they have a record but cannot sign in. Accounts are created with no password — everyone signs in with their ${ssoDomains.join(' or ')} Google account. Nothing is e-mailed and there is nothing to hand out.`
+                    : 'Without an account they have a record but cannot sign in. Everyone created this way must change the password at first sign-in. No e-mail is sent.'
+                }
                 checked={createAccounts}
                 onChange={(e) => setCreateAccounts(e.target.checked)}
               />
-              {createAccounts && (
+
+              {/*
+                No temporary password under single sign-on. One would be a
+                credential nobody uses, and the sign-in endpoint refuses
+                passwords for these addresses anyway, so it could not work.
+              */}
+              {createAccounts && !ssoEnabled && (
                 <Input
                   label="Temporary password for everyone imported"
                   required
@@ -442,6 +479,26 @@ export function ImportWizard({ fields }: { fields: FieldDef[] }) {
                   help="At least 10 characters. Distribute it in person, not by e-mail."
                   containerClassName="max-w-md"
                 />
+              )}
+
+              {createAccounts && ssoEnabled && outsideWorkspace.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+                  <p className="font-semibold">
+                    {outsideWorkspace.length}{' '}
+                    {outsideWorkspace.length === 1 ? 'person is' : 'people are'} outside{' '}
+                    {ssoDomains.join(' or ')}
+                  </p>
+                  <p className="mt-1 leading-relaxed">
+                    They will get a record and an account, but will not be able to sign in, because
+                    sign-in is restricted to Google Workspace accounts in{' '}
+                    {ssoDomains.join(' or ')}. Give them a company address, or import them without
+                    accounts and sort it out individually.
+                  </p>
+                  <p className="mt-1.5 font-mono text-xs">
+                    {outsideWorkspace.slice(0, 8).join(', ')}
+                    {outsideWorkspace.length > 8 && ` and ${outsideWorkspace.length - 8} more`}
+                  </p>
+                </div>
               )}
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button

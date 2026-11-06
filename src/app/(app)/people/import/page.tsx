@@ -3,12 +3,15 @@ import { requireActor } from '@/server/authz/actor';
 import { PageHeader } from '@/components/ui/primitives';
 import { ImportWizard } from './wizard';
 import { IMPORT_FIELDS } from '@/server/services/employee-import';
+import { ssoPublicState } from '@/server/auth/sso';
 
 export const metadata = { title: 'Import employees' };
 
 export default async function ImportPage() {
   const actor = await requireActor();
   if (!actor.isHrAdmin) redirect('/people');
+
+  const sso = ssoPublicState();
 
   return (
     <>
@@ -18,6 +21,8 @@ export default async function ImportPage() {
         description="Four steps: choose the file, confirm which column means what, review exactly what would change, then apply it. Nothing is written until the last step."
       />
       <ImportWizard
+        ssoEnabled={sso.enabled}
+        ssoDomains={sso.domains}
         fields={IMPORT_FIELDS.map((f) => ({
           key: f.key,
           label: f.label,

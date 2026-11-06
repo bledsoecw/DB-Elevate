@@ -16,6 +16,7 @@ import { revokeAllSessionsForUser } from '../auth/session';
 import { hashPassword } from '../auth/password';
 import { notify } from '../notify';
 import { containsInsensitive, containsInsensitiveNullable } from '../search';
+import { accountUsesSso } from '../auth/sso';
 
 /**
  * People: the employee directory, profiles and employment changes.
@@ -207,8 +208,11 @@ export async function createEmployee(actor: Actor, input: EmployeeInput) {
     let userId: string | null = null;
 
     if (input.createAccount !== false) {
+      // A Workspace address signs in with Google and needs no password; only
+      // an address outside the Workspace does.
+      const usesSso = accountUsesSso(email);
       const temporary = input.temporaryPassword?.trim();
-      if (!temporary || temporary.length < 10) {
+      if (!usesSso && (!temporary || temporary.length < 10)) {
         throw new ValidationError(
           'Set a temporary password of at least 10 characters, or create the record without an account.',
         );
@@ -217,9 +221,9 @@ export async function createEmployee(actor: Actor, input: EmployeeInput) {
         data: {
           orgId: actor.orgId,
           email,
-          passwordHash: await hashPassword(temporary),
+          passwordHash: usesSso ? null : await hashPassword(temporary as string),
           status: 'active',
-          mustChangePassword: true,
+          mustChangePassword: !usesSso,
         },
       });
       userId = user.id;

@@ -4,6 +4,8 @@ import type { Actor } from '../authz/actor';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors';
 import { AUDIT_ACTIONS, recordAudit } from '../audit';
 import { hashPassword } from '../auth/password';
+import { ssoState } from '../auth/sso';
+import { addressUsesSso } from '../auth/sso-config';
 import { EMPLOYMENT_TYPES } from '@/lib/enums';
 
 /**
@@ -458,7 +460,20 @@ export async function commitImportBatch(
   actor: Actor,
   batchId: string,
   options: { createAccounts: boolean; temporaryPassword?: string },
-): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
+): Promise<{
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  /** How the accounts created by this import sign in. */
+  signInMethod: 'google_workspace' | 'password' | 'none';
+  /**
+   * Addresses given an account that cannot sign in, because they sit outside
+   * every allowed Workspace domain. Returned so the screen can name them
+   * rather than leaving somebody to discover it one failed sign-in at a time.
+   */
+  outsideWorkspace: string[];
+}> {
   if (!actor.isHrAdmin) throw new ForbiddenError('Only an HR administrator can import employees.');
 
   const batch = await prisma.importBatch.findFirst({ where: { id: batchId, orgId: actor.orgId } });
@@ -468,7 +483,16 @@ export async function commitImportBatch(
     throw new ConflictError('Validate the import and review the preview before applying it.');
   }
 
-  if (options.createAccounts) {
+  /*
+   * With single sign-on configured, accounts for Workspace addresses get no
+   * password at all. A temporary password for somebody who signs in with
+   * Google is a credential nobody uses and somebody can eventually steal —
+   * and with passwords refused at the endpoint, it would not even work.
+   */
+  const sso = ssoState();
+  const ssoOn = sso.enabled;
+
+  if (options.createAccounts && !ssoOn) {
     const temp = options.temporaryPassword?.trim() ?? '';
     if (temp.length < 10) {
       throw new ValidationError(
@@ -485,9 +509,15 @@ export async function commitImportBatch(
   const deptByName = new Map(departments.map((d) => [d.name.toLowerCase(), d.id]));
   const titleByName = new Map(jobTitles.map((t) => [t.name.toLowerCase(), t.id]));
 
-  const passwordHash = options.createAccounts
-    ? await hashPassword(options.temporaryPassword as string)
-    : null;
+  // Only used when single sign-on is off. With it on, every account created
+  // here is passwordless and this stays null.
+  const sharedPasswordHash =
+    options.createAccounts && !ssoOn
+      ? await hashPassword(options.temporaryPassword as string)
+      : null;
+
+  /** Addresses that got an account but cannot sign in, for the report. */
+  const outsideWorkspace: string[] = [];
 
   let created = 0;
   let updated = 0;
@@ -535,14 +565,19 @@ export async function commitImportBatch(
         }
 
         let userId: string | null = null;
-        if (options.createAccounts && passwordHash) {
+        if (options.createAccounts) {
+          // Decided per person, from their address: somebody in the Workspace
+          // signs in with Google, anybody else needs a password.
+          const usesSso = ssoOn && addressUsesSso(sso, row.email);
+          if (ssoOn && !usesSso) outsideWorkspace.push(row.email);
+
           const user = await tx.user.create({
             data: {
               orgId: actor.orgId,
               email: row.email,
-              passwordHash,
+              passwordHash: usesSso ? null : sharedPasswordHash,
               status: 'active',
-              mustChangePassword: true,
+              mustChangePassword: !usesSso && sharedPasswordHash !== null,
             },
           });
           await tx.userRole.create({ data: { userId: user.id, role: 'EMPLOYEE' } });
@@ -623,10 +658,21 @@ export async function commitImportBatch(
       skipped: report.summary.skip,
       errors: report.summary.error,
       accountsCreated: options.createAccounts,
+      signInMethod: options.createAccounts ? (ssoOn ? 'google_workspace' : 'password') : 'none',
+      // Named rather than counted: these people have an account that cannot
+      // sign in, and somebody has to deal with each of them individually.
+      outsideWorkspace: outsideWorkspace.length > 0 ? outsideWorkspace : undefined,
     },
   });
 
-  return { created, updated, skipped: report.summary.skip, errors: report.summary.error };
+  return {
+    created,
+    updated,
+    skipped: report.summary.skip,
+    errors: report.summary.error,
+    signInMethod: options.createAccounts ? (ssoOn ? 'google_workspace' : 'password') : 'none',
+    outsideWorkspace,
+  };
 }
 
 export async function cancelImportBatch(actor: Actor, batchId: string): Promise<void> {

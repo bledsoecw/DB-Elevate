@@ -5,7 +5,7 @@ import { parseBody, publicHandler, requestMeta } from '@/server/api';
 import { AppError } from '@/server/errors';
 import { verifyPassword } from '@/server/auth/password';
 import { createSession, setSessionCookie } from '@/server/auth/session';
-import { passwordLoginAllowed } from '@/server/auth/sso';
+import { mustUseSso, passwordLoginAllowed } from '@/server/auth/sso';
 import { AUDIT_ACTIONS, recordAudit, recordSystemAudit } from '@/server/audit';
 
 const LoginSchema = z.object({
@@ -48,6 +48,27 @@ export const POST = publicHandler(async ({ request }) => {
   const { email, password } = await parseBody(request, LoginSchema);
   const meta = requestMeta(request);
   const normalizedEmail = email.toLowerCase();
+
+  /*
+   * A Workspace address signs in with Google, whatever else is configured.
+   *
+   * Checked before any database lookup, which is what makes it safe to be
+   * specific here: the answer depends only on the domain of the address the
+   * caller just typed, so it says nothing about whether an account exists.
+   * Somebody enumerating addresses learns only the company's sign-in policy,
+   * which is on the sign-in page anyway.
+   *
+   * This is deliberately stronger than ALLOW_PASSWORD_LOGIN. That switch is
+   * all-or-nothing: turning passwords on for one person outside the Workspace
+   * would otherwise make every company account reachable by password again.
+   */
+  if (mustUseSso(normalizedEmail)) {
+    throw new AppError(
+      'Accounts at this domain sign in with Google Workspace. Use the Google button on the sign-in page.',
+      403,
+      'sso_required',
+    );
+  }
 
   const user = await prisma.user.findFirst({
     where: { email: { equals: normalizedEmail } },

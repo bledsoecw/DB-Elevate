@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDomains, resolveSso, type SsoEnv } from '@/server/auth/sso-config';
+import { addressUsesSso, parseDomains, resolveSso, type SsoEnv } from '@/server/auth/sso-config';
 import { verifyGoogleClaims, type GoogleIdClaims } from '@/server/auth/google-claims';
 import { authorizeUrl, beginLogin, exchangeCode, statesMatch } from '@/server/auth/google';
 
@@ -406,5 +406,45 @@ describe('the authorization-code exchange', () => {
     expect(statesMatch(null, 'abc')).toBe(false);
     expect(statesMatch('abc', null)).toBe(false);
     expect(statesMatch('', '')).toBe(false);
+  });
+});
+
+describe('which accounts get a password', () => {
+  const on = resolveSso(BASE_ENV);
+  const off = resolveSso({});
+  const multi = resolveSso({ ...BASE_ENV, GOOGLE_WORKSPACE_DOMAIN: 'deitemeyerbrothers.com, db-field.com' });
+
+  it('gives no password to an address in the Workspace', () => {
+    expect(addressUsesSso(on, 'rosa@deitemeyerbrothers.com')).toBe(true);
+    expect(addressUsesSso(on, 'ROSA@DeitemeyerBrothers.COM')).toBe(true);
+  });
+
+  it('gives a password to an address outside it', () => {
+    expect(addressUsesSso(on, 'rosa@gmail.com')).toBe(false);
+    expect(addressUsesSso(on, 'rosa@deitemeyerbrothers.com.evil.example')).toBe(false);
+    expect(addressUsesSso(on, 'rosa@notdeitemeyerbrothers.com')).toBe(false);
+  });
+
+  it('honours every configured domain', () => {
+    expect(addressUsesSso(multi, 'crew@db-field.com')).toBe(true);
+    expect(addressUsesSso(multi, 'office@deitemeyerbrothers.com')).toBe(true);
+    expect(addressUsesSso(multi, 'someone@elsewhere.com')).toBe(false);
+  });
+
+  it('gives everyone a password when SSO is not configured', () => {
+    // Otherwise a deployment with no SSO would create accounts that have
+    // neither a password nor any way to sign in.
+    expect(addressUsesSso(off, 'rosa@deitemeyerbrothers.com')).toBe(false);
+  });
+
+  it('is not confused by a malformed address', () => {
+    expect(addressUsesSso(on, 'not-an-address')).toBe(false);
+    expect(addressUsesSso(on, '')).toBe(false);
+    expect(addressUsesSso(on, '@deitemeyerbrothers.com')).toBe(true);
+  });
+
+  it('is decided by the domain alone, never by the local part', () => {
+    // A local part that merely contains an allowed domain must not pass.
+    expect(addressUsesSso(on, 'deitemeyerbrothers.com@gmail.com')).toBe(false);
   });
 });
