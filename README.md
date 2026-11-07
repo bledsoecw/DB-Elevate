@@ -286,6 +286,7 @@ Stated plainly, because a feature list that hides these is not useful.
 
 | Document | What it covers |
 |---|---|
+| [ROLLOUT.md](docs/ROLLOUT.md) | Taking a live installation from one administrator to the whole company, in order |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Stack, layering, where enforcement lives, scaling notes |
 | [PERMISSIONS.md](docs/PERMISSIONS.md) | The full matrix, and how history is protected from reorganization |
 | [SCORING.md](docs/SCORING.md) | Every scoring rule, worked by hand |
